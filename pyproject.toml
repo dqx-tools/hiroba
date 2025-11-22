@@ -1,32 +1,9 @@
 [project]
-name = "barohi.sc"
-version = "0.1.0"
-description = "DQX News translation API - Extract and translate Dragon Quest X news"
+name = "dqx-tools"
+version = "1.0.0"
+description = "DQX Tools Monorepo - Dragon Quest X translation services"
 requires-python = ">=3.12"
-dependencies = [
-    "beautifulsoup4>=4.13.3",
-    "fastapi>=0.115.11",
-    "google-cloud-vision>=3.10.1",
-    "httpx>=0.28.1",
-    "langchain>=0.3.0",
-    "langchain-openai>=0.2.0",
-    "matplotlib>=3.10.1",
-    "numpy>=2.2.4",
-    "openai>=1.66.5",
-    "opencv-python>=4.11.0.86",
-    "pillow>=11.1.0",
-    "pydantic>=2.0.0",
-    "scikit-learn>=1.6.1",
-    "shapely>=2.0.7",
-    "textdistance>=4.6.3",
-    "uvicorn>=0.34.0",
-]
-
-[dependency-groups]
-dev = [
-    "workers-py",
-    "workers-runtime-sdk"
-]
+dependencies = []
 
 [project.optional-dependencies]
 dev = [
@@ -54,6 +31,3 @@ line-length = 88
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
 ignore = ["E501"]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src"]

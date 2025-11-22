@@ -1,12 +1,8 @@
 """Cloudflare Workers entry point for DQX News API."""
 
-import sys
-from pathlib import Path
 from typing import Any
-from workers import WorkerEntrypoint
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from workers import WorkerEntrypoint
 
 
 class D1DatabaseWrapper:

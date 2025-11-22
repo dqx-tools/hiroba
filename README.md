@@ -1,10 +1,50 @@
-# Barohi.sc - DQX Translation Services
+# DQX Tools - Dragon Quest X Translation Services
 
-Translation services for Dragon Quest X content from hiroba.dqx.jp.
+A monorepo containing translation services for Dragon Quest X content from hiroba.dqx.jp.
+
+## Project Structure
+
+This is a monorepo with multiple self-contained Cloudflare Workers:
+
+```
+├── workers/
+│   ├── news/                  # News Translation API Worker
+│   │   ├── pyproject.toml     # Worker-specific dependencies
+│   │   ├── wrangler.jsonc     # Worker configuration
+│   │   ├── worker.py          # Cloudflare Workers entry point
+│   │   └── src/
+│   │       └── dqx_news/      # News translation source code
+│   │           ├── api.py     # FastAPI application
+│   │           ├── cache.py   # D1 caching layer
+│   │           ├── scraper.py # News page scraper
+│   │           └── translator.py # LangChain translation
+│   │
+│   └── banner/                # Banner Translation API Worker
+│       ├── pyproject.toml     # Worker-specific dependencies
+│       ├── wrangler.jsonc     # Worker configuration
+│       ├── worker.py          # Cloudflare Workers entry point
+│       └── src/
+│           └── banner/        # Banner translation source code
+│               ├── models.py  # Data models (Point, BoundingBox, etc.)
+│               ├── ocr.py     # Google Cloud Vision OCR
+│               ├── bounding_boxes.py  # Box merging algorithms
+│               ├── inpaint.py # Text region inpainting
+│               ├── text_style.py # Style extraction
+│               ├── font.py    # Font mapping
+│               ├── translator.py # Image text translation
+│               ├── image_utils.py # Image loading/manipulation
+│               ├── slides.py  # Banner slide fetching
+│               ├── renderer.py # SVG rendering
+│               └── pipeline.py # Main translation pipeline
+│
+├── tests/                     # Shared test suite
+├── pyproject.toml             # Root config (dev tools only)
+└── README.md
+```
 
 ## Features
 
-### News Translation API
+### News Translation API (`workers/news`)
 
 - Extracts news listings from all 4 categories:
   - News (ニュース)
@@ -14,8 +54,9 @@ Translation services for Dragon Quest X content from hiroba.dqx.jp.
 - Translates Japanese content to English using LangChain + OpenAI
 - Caches translations in Cloudflare D1 for fast responses
 - RESTful API with pagination support
+- Hourly cron job to refresh news automatically
 
-### Banner Translation
+### Banner Translation API (`workers/banner`)
 
 - Extracts rotation banner images from hiroba.dqx.jp
 - OCR text detection using Google Cloud Vision
@@ -26,6 +67,8 @@ Translation services for Dragon Quest X content from hiroba.dqx.jp.
 
 ## API Endpoints
 
+### News API
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/` | GET | Service info and available endpoints |
@@ -35,7 +78,7 @@ Translation services for Dragon Quest X content from hiroba.dqx.jp.
 | `/refresh` | POST | Force refresh news from source |
 | `/health` | GET | Health check |
 
-### Query Parameters
+#### Query Parameters
 
 **GET /news**
 - `category` - Filter by category (news, events, updates, maintenance)
@@ -56,27 +99,30 @@ Translation services for Dragon Quest X content from hiroba.dqx.jp.
 - OpenAI API key
 - Google Cloud Vision API credentials (for banner OCR)
 
-### Installation
+### Development
+
+Each worker is self-contained with its own dependencies. To work on a specific worker:
 
 ```bash
-# Install Python dependencies
+# Navigate to the worker directory
+cd workers/news  # or workers/banner
+
+# Install dependencies
 uv sync
 
-# Install dev dependencies
-uv sync --extra dev
-
-# Install wrangler
-npm install -g wrangler
+# Run local development server
+npx wrangler dev
 ```
 
 ### Configure Cloudflare
 
-1. Create D1 database:
+1. Create D1 database (for news worker):
 ```bash
+cd workers/news
 wrangler d1 create dqx-news-cache
 ```
 
-2. Update `wrangler.toml` with your D1 database ID
+2. Update `wrangler.jsonc` with your D1 database ID
 
 3. Set OpenAI API key:
 ```bash
@@ -85,77 +131,60 @@ wrangler secret put OPENAI_API_KEY
 
 ### Deploy
 
-```bash
-# Deploy to staging
-wrangler deploy --env staging
+Deploy each worker from its directory:
 
-# Deploy to production
-wrangler deploy --env production
+```bash
+# Deploy news worker
+cd workers/news
+npx wrangler deploy
+
+# Deploy banner worker
+cd workers/banner
+npx wrangler deploy
 ```
 
-## Development
+## Running Tests
 
-### Run Tests
+Tests are run from the project root:
 
 ```bash
+# Install dev dependencies at root
+uv sync --extra dev
+
 # Run all tests
 uv run pytest
 
 # Run with coverage
-uv run pytest --cov=src --cov-report=html
+uv run pytest --cov --cov-report=html
 
 # Run specific test file
 uv run pytest tests/test_scraper.py -v
 ```
 
-### Local Development
+## Worker Dependencies
 
-```bash
-# Run FastAPI locally (without Workers)
-uv run uvicorn src.dqx_news.api:app --reload
+Each worker has its own minimal `pyproject.toml` with only the dependencies it needs:
 
-# Run with wrangler dev
-wrangler dev
-```
+### News Worker Dependencies
+- beautifulsoup4 - Web scraping
+- fastapi - API framework
+- httpx - HTTP client
+- langchain-core - LLM orchestration
+- langchain-openai - OpenAI integration
+- pydantic - Data validation
 
-## Project Structure
-
-```
-├── src/
-│   ├── dqx_news/           # News translation API
-│   │   ├── __init__.py
-│   │   ├── api.py          # FastAPI application
-│   │   ├── cache.py        # D1 caching layer
-│   │   ├── scraper.py      # News page scraper
-│   │   ├── translator.py   # LangChain translation
-│   │   └── worker.py       # Cloudflare Workers entry
-│   │
-│   └── banner/             # Banner translation
-│       ├── __init__.py
-│       ├── models.py       # Data models (Point, BoundingBox, etc.)
-│       ├── ocr.py          # Google Cloud Vision OCR
-│       ├── bounding_boxes.py  # Box merging algorithms
-│       ├── inpaint.py      # Text region inpainting
-│       ├── text_style.py   # Style extraction
-│       ├── font.py         # Font mapping
-│       ├── translator.py   # Image text translation
-│       ├── image_utils.py  # Image loading/manipulation
-│       ├── slides.py       # Banner slide fetching
-│       ├── renderer.py     # SVG rendering
-│       └── pipeline.py     # Main translation pipeline
-│
-├── tests/
-│   ├── test_api.py
-│   ├── test_cache.py
-│   ├── test_scraper.py
-│   ├── test_translator.py
-│   ├── test_banner_*.py    # Banner module tests
-│   └── conftest.py
-│
-├── pyproject.toml
-├── wrangler.toml
-└── README.md
-```
+### Banner Worker Dependencies
+- google-cloud-vision - OCR
+- httpx - HTTP client
+- matplotlib - Image visualization
+- numpy - Numerical computing
+- openai - OpenAI API
+- opencv-python - Image processing
+- pillow - Image manipulation
+- pydantic - Data validation
+- scikit-learn - Machine learning (color clustering)
+- shapely - Geometric operations
+- textdistance - Text similarity
 
 ## Banner Translation Usage
 

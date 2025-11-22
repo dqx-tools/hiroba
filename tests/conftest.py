@@ -5,8 +5,11 @@ from pathlib import Path
 
 import pytest
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add worker src directories to path for imports
+# This allows tests to import from both workers as if they were local packages
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root / "workers" / "news"))
+sys.path.insert(0, str(project_root / "workers" / "banner"))
 
 
 @pytest.fixture

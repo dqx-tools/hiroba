@@ -1,11 +1,5 @@
 """Cloudflare Workers entry point for DQX Banner Translation API."""
 
-import sys
-from pathlib import Path
-
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 
 async def on_fetch(request, env):
     """
