@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 from typing import Any
+from workers import WorkerEntrypoint
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -28,136 +29,81 @@ class D1DatabaseWrapper:
         return await self._db.batch(prepared)
 
 
-async def on_fetch(request, env):
-    """
-    Cloudflare Workers fetch handler.
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        import asgi
+        from src.dqx_news.api import create_app
 
-    This is the entry point for all HTTP requests to the Worker.
-    """
-    from js import Response, Headers  # type: ignore[import-not-found]
-    from urllib.parse import urlparse
+        # Get configuration from environment
+        openai_api_key = self.env.OPENAI_API_KEY
+        openai_model = getattr(self.env, "OPENAI_MODEL", "gpt-5.1")
 
-    from src.dqx_news.api import create_app
+        # Wrap D1 database
+        db = D1DatabaseWrapper(self.env.DB)
 
-    # Get configuration from environment
-    openai_api_key = env.OPENAI_API_KEY
-    openai_model = getattr(env, "OPENAI_MODEL", "gpt-4.5-preview")
-
-    # Wrap D1 database
-    db = D1DatabaseWrapper(env.DB)
-
-    # Create FastAPI app
-    app = create_app(db, openai_api_key, openai_model)
-
-    # Parse request
-    url = urlparse(request.url)
-    path = url.path
-    method = request.method
-
-    # Simple routing to FastAPI
-    scope = {
-        "type": "http",
-        "method": method,
-        "path": path,
-        "query_string": (url.query or "").encode(),
-        "headers": [(k.lower().encode(), v.encode()) for k, v in request.headers],
-    }
-
-    response_body = []
-    response_status = 200
-    response_headers = {}
-
-    async def receive():
-        body = await request.text()
-        return {"type": "http.request", "body": body.encode()}
-
-    async def send(message):
-        nonlocal response_status, response_headers
-        if message["type"] == "http.response.start":
-            response_status = message["status"]
-            response_headers = dict(message.get("headers", []))
-        elif message["type"] == "http.response.body":
-            response_body.append(message.get("body", b""))
-
-    await app(scope, receive, send)
-
-    headers = Headers.new()
-    for k, v in response_headers.items():
-        if isinstance(k, bytes):
-            k = k.decode()
-        if isinstance(v, bytes):
-            v = v.decode()
-        headers.set(k, v)
-
-    return Response.new(
-        b"".join(response_body),
-        status=response_status,
-        headers=headers,
-    )
+        # Create FastAPI app
+        app = create_app(db, openai_api_key, openai_model)
 
 
-async def on_scheduled(event, env, ctx):
-    """
-    Cloudflare Workers scheduled event handler.
+        return await asgi.fetch(app, request.js_object, self.env)
 
-    This is triggered by cron jobs to refresh news listings.
-    """
-    from src.dqx_news.cache import D1Cache
-    from src.dqx_news.scraper import DQXNewsScraper, NewsCategory
-    from src.dqx_news.translator import DQXTranslator
+    async def scheduled(self, controller, env, ctx):
+        """
+        Cloudflare Workers scheduled event handler.
 
-    # Get configuration from environment
-    openai_api_key = env.OPENAI_API_KEY
-    openai_model = getattr(env, "OPENAI_MODEL", "gpt-4.5-preview")
+        This is triggered by cron jobs to refresh news listings.
+        """
+        from src.dqx_news.cache import D1Cache
+        from src.dqx_news.scraper import DQXNewsScraper, NewsCategory
+        from src.dqx_news.translator import DQXTranslator
 
-    # Wrap D1 database
-    db = D1DatabaseWrapper(env.DB)
-    cache = D1Cache(db)
-    translator = DQXTranslator(openai_api_key, model=openai_model)
+        # Get configuration from environment
+        openai_api_key = env.OPENAI_API_KEY
+        openai_model = getattr(env, "OPENAI_MODEL", "gpt-4.5-preview")
 
-    # Initialize cache schema if needed
-    await cache.initialize()
+        # Wrap D1 database
+        db = D1DatabaseWrapper(env.DB)
+        cache = D1Cache(db)
+        translator = DQXTranslator(openai_api_key, model=openai_model)
 
-    # Refresh all categories
-    refreshed = 0
-    errors = 0
+        # Initialize cache schema if needed
+        await cache.initialize()
 
-    async with DQXNewsScraper() as scraper:
-        for category in NewsCategory:
-            try:
-                items, _ = await scraper.get_news_listing(category, page=1)
+        # Refresh all categories
+        refreshed = 0
+        errors = 0
 
-                for item in items[:50]:  # Limit per category
-                    try:
-                        # Check if already cached with same title
-                        cached = await cache.get_translation(item.id)
-                        if cached and cached.title_ja == item.title:
-                            continue
+        async with DQXNewsScraper() as scraper:
+            for category in NewsCategory:
+                try:
+                    items, _ = await scraper.get_news_listing(category, page=1)
 
-                        # Translate title only for listing
-                        translated = await translator.translate_news_item(item)
+                    for item in items[:50]:  # Limit per category
+                        try:
+                            # Check if already cached with same title
+                            cached = await cache.get_translation(item.id)
+                            if cached and cached.title_ja == item.title:
+                                continue
 
-                        # Save to cache (without full content)
-                        content_hash = translator.compute_content_hash(item.title)
-                        await cache.save_translation(
-                            news_id=translated.id,
-                            content_hash=content_hash,
-                            title_ja=translated.title_ja,
-                            title_en=translated.title_en,
-                            category=translated.category,
-                            date=translated.date,
-                            url=translated.url,
-                        )
-                        refreshed += 1
-                    except Exception:
-                        errors += 1
+                            # Translate title only for listing
+                            translated = await translator.translate_news_item(item)
 
-            except Exception:
-                errors += 1
+                            # Save to cache (without full content)
+                            content_hash = translator.compute_content_hash(item.title)
+                            await cache.save_translation(
+                                news_id=translated.id,
+                                content_hash=content_hash,
+                                title_ja=translated.title_ja,
+                                title_en=translated.title_en,
+                                category=translated.category,
+                                date=translated.date,
+                                url=translated.url,
+                            )
+                            refreshed += 1
+                        except Exception:
+                            errors += 1
 
-    print(f"Scheduled refresh complete: {refreshed} items refreshed, {errors} errors")
+                except Exception:
+                    errors += 1
 
-
-# Export handlers for Cloudflare Workers
-fetch = on_fetch
-scheduled = on_scheduled
+        print(f"Scheduled refresh complete: {refreshed} items refreshed, {errors} errors")

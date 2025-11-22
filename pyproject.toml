@@ -22,6 +22,12 @@ dependencies = [
     "uvicorn>=0.34.0",
 ]
 
+[dependency-groups]
+dev = [
+    "workers-py",
+    "workers-runtime-sdk"
+]
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",

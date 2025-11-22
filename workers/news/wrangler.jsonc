@@ -4,7 +4,7 @@
 
   "name": "dqx-news-api",
   "main": "worker.py",
-  "compatibility_date": "2025-11-02",
+  "compatibility_date": "2025-11-22",
   "compatibility_flags": ["python_workers"],
 
   "observability": {
@@ -15,14 +15,13 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "dqx-news-cache",
-      "database_id": "your-d1-database-id-here" // Replace with actual D1 database ID
+      "database_name": "dqx-news-cache"
     }
   ],
 
   // Environment variables
   "vars": {
-    "OPENAI_MODEL": "gpt-4.5-preview"
+    "OPENAI_MODEL": "gpt-5.1"
   },
 
   // Cron trigger for hourly news refresh
@@ -41,13 +40,12 @@
         { "pattern": "hiroba-api.dqx.tools/refresh*", "zone_name": "dqx.tools" }
       ],
       "vars": {
-        "OPENAI_MODEL": "gpt-4.5-preview"
+        "OPENAI_MODEL": "gpt-5.1"
       },
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "dqx-news-cache",
-          "database_id": "your-d1-database-id-here" // Replace with actual D1 database ID
+          "database_name": "dqx-news-cache"
         }
       ],
       "triggers": {
@@ -64,8 +62,7 @@
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "dqx-news-cache-staging",
-          "database_id": "your-d1-staging-database-id-here" // Replace with actual D1 database ID
+          "database_name": "dqx-news-cache-staging"
         }
       ]
     }
