@@ -1,56 +1,58 @@
-"""Image inpainting to remove text regions."""
+"""Image inpainting to remove text regions using Replicate."""
 
-import cv2
-import numpy as np
+import base64
+import io
+
+import replicate
 from PIL import Image
-from shapely.geometry import Polygon
 
 from .models import TextAnnotation
 
 
-def inpaint_text_regions(
+async def inpaint_text_regions(
     image: Image.Image,
-    annotations: list[TextAnnotation],
-    inpaint_method: int = cv2.INPAINT_TELEA,
-    inpaint_radius: int = 3,
-    expand_px: float = 1,
+    annotations: list[TextAnnotation],  # noqa: ARG001 - kept for API compatibility
 ) -> Image.Image:
     """
-    Inpaint regions of an image specified by text annotations.
+    Inpaint regions of an image to remove text using Replicate.
+
+    Uses the qwen/qwen-image-edit-plus model with the prompt
+    "Remove the text from the image".
 
     Args:
         image: PIL Image to inpaint
-        annotations: List of TextAnnotation objects defining regions to inpaint
-        inpaint_method: OpenCV inpaint method (cv2.INPAINT_TELEA or cv2.INPAINT_NS)
-        inpaint_radius: Radius of circular neighborhood for inpainting
-        expand_px: Optional expansion of bounding boxes in pixels
+        annotations: List of TextAnnotation objects (kept for API compatibility,
+                    but the AI model handles text detection internally)
 
     Returns:
         PIL Image with text regions inpainted
     """
-    img_array = np.array(image)
+    # Convert PIL Image to base64 data URI
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+    image_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    image_data_uri = f"data:image/png;base64,{image_base64}"
 
-    # Create mask for inpainting (white where we want to inpaint)
-    mask = np.zeros(img_array.shape[:2], dtype=np.uint8)
+    # Call Replicate API
+    output = await replicate.async_run(
+        "qwen/qwen-image-edit-plus",
+        input={
+            "image": image_data_uri,
+            "prompt": "Remove the text from the image",
+        },
+    )
 
-    for annotation in annotations:
-        bbox = annotation.bounding_poly
-        vertices = np.array(
-            [(int(p.x), int(p.y)) for p in bbox.vertices], np.int32
-        )
+    # Handle different output formats
+    if isinstance(output, list) and len(output) > 0:
+        output_url = output[0]
+    else:
+        output_url = output
 
-        if expand_px > 0:
-            polygon = Polygon(vertices.reshape((-1, 2)))
-            expanded_polygon = polygon.buffer(expand_px)
-            if expanded_polygon.geom_type == "Polygon":
-                expanded_coords = np.array(expanded_polygon.exterior.coords, np.int32)
-                vertices = expanded_coords.reshape((-1, 1, 2))
-            else:
-                vertices = vertices.reshape((-1, 1, 2))
-        else:
-            vertices = vertices.reshape((-1, 1, 2))
+    # Download and return the result image
+    import httpx
 
-        cv2.fillPoly(mask, [vertices], 255)  # type: ignore[arg-type]
-
-    inpainted = cv2.inpaint(img_array, mask, inpaint_radius, inpaint_method)
-    return Image.fromarray(inpainted)
+    async with httpx.AsyncClient() as client:
+        response = await client.get(str(output_url))
+        response.raise_for_status()
+        return Image.open(io.BytesIO(response.content))

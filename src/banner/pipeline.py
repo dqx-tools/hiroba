@@ -96,7 +96,7 @@ class BannerTranslator:
             return render_svg(image, [])
 
         # Step 3: Inpaint text regions
-        inpainted_image = inpaint_text_regions(image, annotations)
+        inpainted_image = await inpaint_text_regions(image, annotations)
 
         # Step 4: Translate all texts
         texts = [ann.description for ann in annotations]
