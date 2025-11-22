@@ -2,12 +2,48 @@
 
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Optional
 from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup
+
+# Japan Standard Time offset (UTC+9)
+JST = timezone(timedelta(hours=9))
+
+
+def parse_jst_date_to_iso8601(date_str: str) -> str:
+    """
+    Parse a date string as JST and convert to ISO8601 format.
+
+    Handles formats like:
+    - "2024-01-15"
+    - "2024/01/15"
+    - "2024-01-15 10:30"
+    - "2024/01/15 10:30"
+
+    Returns ISO8601 string with timezone info (e.g., "2024-01-15T10:30:00+09:00")
+    """
+    if not date_str:
+        return ""
+
+    # Normalize separators
+    normalized = date_str.replace("/", "-").strip()
+
+    # Try parsing with time
+    for fmt in ["%Y-%m-%d %H:%M", "%Y-%m-%d"]:
+        try:
+            dt = datetime.strptime(normalized, fmt)
+            # Attach JST timezone
+            dt = dt.replace(tzinfo=JST)
+            return dt.isoformat()
+        except ValueError:
+            continue
+
+    # Return original if parsing fails
+    return date_str
 
 
 class NewsCategory(Enum):
@@ -139,7 +175,7 @@ class DQXNewsScraper:
                 NewsItem(
                     id=news_id,
                     title=title,
-                    date=date,
+                    date=parse_jst_date_to_iso8601(date),
                     url=full_url,
                     category=category,
                 )
@@ -227,7 +263,7 @@ class DQXNewsScraper:
         return NewsDetail(
             id=news_id,
             title=title,
-            date=date,
+            date=parse_jst_date_to_iso8601(date),
             category=category,
             content_html=content_html,
             content_text=content_text,

@@ -1,0 +1,62 @@
+# Cloudflare Workers configuration for DQX News API
+# Deploy using: npx wrangler deploy (from this directory)
+
+name = "dqx-news-api"
+main = "worker.py"
+compatibility_date = "2025-11-02"
+compatibility_flags = ["python_workers"]
+
+[observability]
+enabled = true
+
+# D1 Database binding for caching translations
+[[d1_databases]]
+binding = "DB"
+database_name = "dqx-news-cache"
+database_id = "your-d1-database-id-here"  # Replace with actual D1 database ID
+
+# Environment variables
+[vars]
+OPENAI_MODEL = "gpt-4.5-preview"
+
+# Cron trigger for hourly news refresh
+[triggers]
+crons = ["0 * * * *"]  # Every hour at minute 0
+
+# Production environment
+[env.production]
+name = "dqx-news-api"
+routes = [
+    { pattern = "hiroba-api.dqx.tools/news*", zone_name = "dqx.tools" },
+    { pattern = "hiroba-api.dqx.tools/categories*", zone_name = "dqx.tools" },
+    { pattern = "hiroba-api.dqx.tools/health*", zone_name = "dqx.tools" },
+    { pattern = "hiroba-api.dqx.tools/refresh*", zone_name = "dqx.tools" }
+]
+
+[env.production.vars]
+OPENAI_MODEL = "gpt-4.5-preview"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "dqx-news-cache"
+database_id = "your-d1-database-id-here"  # Replace with actual D1 database ID
+
+[env.production.triggers]
+crons = ["0 * * * *"]
+
+# Staging environment
+[env.staging]
+name = "dqx-news-api-staging"
+
+[env.staging.vars]
+OPENAI_MODEL = "gpt-4.5-preview"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "dqx-news-cache-staging"
+database_id = "your-d1-staging-database-id-here"  # Replace with actual D1 database ID
+
+# Development settings
+[dev]
+port = 8787
+local_protocol = "http"
