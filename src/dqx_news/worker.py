@@ -33,7 +33,7 @@ async def on_fetch(request, env):
 
     This is the entry point for all HTTP requests to the Worker.
     """
-    from js import Response, Headers
+    from js import Response, Headers  # type: ignore[import-not-found]
     from urllib.parse import urlparse
 
     # Import here to avoid issues with Pyodide module loading

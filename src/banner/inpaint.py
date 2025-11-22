@@ -50,7 +50,7 @@ def inpaint_text_regions(
         else:
             vertices = vertices.reshape((-1, 1, 2))
 
-        cv2.fillPoly(mask, [vertices], 255)
+        cv2.fillPoly(mask, [vertices], 255)  # type: ignore[arg-type]
 
     inpainted = cv2.inpaint(img_array, mask, inpaint_radius, inpaint_method)
     return Image.fromarray(inpainted)

@@ -20,7 +20,7 @@ def detect_text(image_url: str) -> list[TextAnnotation]:
     image = vision.Image()
     image.source.image_uri = image_url
 
-    response = client.text_detection(
+    response = client.text_detection(  # type: ignore[attr-defined]
         image=image, image_context={"language_hints": ["ja"]}
     )
 

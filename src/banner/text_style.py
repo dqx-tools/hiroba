@@ -82,7 +82,7 @@ def get_dominant_colors(image: Image.Image, num_colors: int = 5) -> list[RGB]:
     ]
 
     color_percentages.sort(key=lambda x: x[1], reverse=True)
-    return [color[0] for color in color_percentages]
+    return [color[0] for color in color_percentages]  # type: ignore[misc]
 
 
 def closest_color(colors: list[RGB], target: RGB) -> RGB:
@@ -91,7 +91,7 @@ def closest_color(colors: list[RGB], target: RGB) -> RGB:
     target_arr = np.array(target)
     distances = np.sqrt(np.sum((colors_arr - target_arr) ** 2, axis=1))
     index = np.argmin(distances)
-    return tuple(int(c) for c in colors_arr[index])
+    return tuple(int(c) for c in colors_arr[index])  # type: ignore[return-value]
 
 
 def rgb_to_hex(rgb: RGB) -> str:

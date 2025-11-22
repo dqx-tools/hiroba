@@ -70,7 +70,7 @@ class BannerTranslator:
         return await self.translate_image(image, image_url)
 
     async def translate_image(
-        self, image: Image, source_url: str | None = None
+        self, image: Image.Image, source_url: str | None = None
     ) -> str:
         """
         Translate a banner image.

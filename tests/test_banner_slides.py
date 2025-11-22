@@ -23,6 +23,7 @@ class TestExtractSlide:
         """
         soup = BeautifulSoup(html, "html.parser")
         slide_elem = soup.select_one(".slide")
+        assert slide_elem is not None
 
         slide = _extract_slide(slide_elem)
 
@@ -40,6 +41,7 @@ class TestExtractSlide:
         """
         soup = BeautifulSoup(html, "html.parser")
         slide_elem = soup.select_one(".slide")
+        assert slide_elem is not None
 
         slide = _extract_slide(slide_elem)
 
@@ -56,6 +58,7 @@ class TestExtractSlide:
         """
         soup = BeautifulSoup(html, "html.parser")
         slide_elem = soup.select_one(".slide")
+        assert slide_elem is not None
 
         slide = _extract_slide(slide_elem)
 

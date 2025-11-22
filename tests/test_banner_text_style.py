@@ -75,6 +75,7 @@ class TestGetDominantColors:
         img = Image.new("RGB", (100, 100), color=(255, 0, 0))
         # Fill bottom half with blue
         pixels = img.load()
+        assert pixels is not None
         for y in range(50, 100):
             for x in range(100):
                 pixels[x, y] = (0, 0, 255)

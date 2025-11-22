@@ -49,9 +49,9 @@ class DQXTranslator:
         temperature: float = 0.3,
     ):
         self.llm = ChatOpenAI(
-            model=model,
+            model=model,  # type: ignore[arg-type]
             temperature=temperature,
-            api_key=openai_api_key,
+            api_key=openai_api_key,  # type: ignore[arg-type]
         )
 
         self.title_prompt = ChatPromptTemplate.from_messages(
