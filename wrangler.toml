@@ -1,0 +1,45 @@
+# Cloudflare Workers configuration for DQX News API
+# Deploy using: npx wrangler deploy
+
+name = "dqx-news-api"
+main = "src/dqx_news/worker.py"
+compatibility_date = "2024-01-01"
+
+# Python Workers support (pywrangler)
+[build]
+command = ""
+
+# D1 Database binding for caching translations
+[[d1_databases]]
+binding = "DB"
+database_name = "dqx-news-cache"
+database_id = "your-d1-database-id-here"  # Replace with actual D1 database ID
+
+# Environment variables
+[vars]
+OPENAI_MODEL = "gpt-4.5-preview"
+
+# Secrets (set via wrangler secret put)
+# OPENAI_API_KEY - Your OpenAI API key
+
+# Production environment
+[env.production]
+name = "dqx-news-api"
+routes = [
+    { pattern = "dqx-news.your-domain.com/*", zone_name = "your-domain.com" }
+]
+
+[env.production.vars]
+OPENAI_MODEL = "gpt-4.5-preview"
+
+# Staging environment
+[env.staging]
+name = "dqx-news-api-staging"
+
+[env.staging.vars]
+OPENAI_MODEL = "gpt-4.5-preview"
+
+# Development settings
+[dev]
+port = 8787
+local_protocol = "http"
