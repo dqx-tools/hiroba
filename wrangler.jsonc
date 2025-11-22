@@ -1,0 +1,16 @@
+{
+  // DQX Tools - Cloudflare Workers
+  //
+  // This project contains multiple workers. Deploy each from their respective directories:
+  //
+  // News API Worker:
+  //   cd workers/news && npx wrangler deploy
+  //
+  // Banner Translation Worker:
+  //   cd workers/banner && npx wrangler deploy
+  //
+  // See workers/*/wrangler.jsonc for individual worker configurations.
+  //
+  // This file is kept for documentation purposes only.
+  // Each worker has its own wrangler.jsonc in its directory.
+}
