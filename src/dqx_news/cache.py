@@ -209,15 +209,12 @@ class D1Cache:
             return result.results[0]["count"]
         return 0
 
-    async def delete_old_entries(self, days: int = 90) -> int:
-        """Delete entries older than specified days."""
-        cutoff = datetime.now(timezone.utc)
-        # Calculate cutoff date (simplified - in production use proper date math)
-        result = await self.db.execute(
-            """
-            DELETE FROM news_translations
-            WHERE date < date('now', '-' || ? || ' days')
-            """,
-            [days],
-        )
-        return result.changes if result else 0
+    def is_cache_stale(self, cached: CachedTranslation, max_age_hours: int = 6) -> bool:
+        """Check if cache entry needs revalidation based on updated_at timestamp."""
+        try:
+            updated = datetime.fromisoformat(cached.updated_at.replace("Z", "+00:00"))
+            now = datetime.now(timezone.utc)
+            age_hours = (now - updated).total_seconds() / 3600
+            return age_hours > max_age_hours
+        except (ValueError, AttributeError):
+            return True  # Revalidate if we can't parse the timestamp

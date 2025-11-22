@@ -186,14 +186,88 @@ class TestD1Cache:
         call_args = mock_db.execute.call_args
         assert "WHERE category = ?" in call_args[0][0]
 
-    @pytest.mark.asyncio
-    async def test_delete_old_entries(self, cache, mock_db):
-        """Test deleting old entries."""
-        mock_db.execute.return_value = MockD1Result(changes=5)
+    def test_is_cache_stale_fresh(self, cache):
+        """Test cache is not stale when recently updated."""
+        now = datetime.now(timezone.utc).isoformat()
+        cached = CachedTranslation(
+            news_id="test123",
+            content_hash="hash123",
+            title_ja="日本語",
+            title_en="English",
+            content_ja=None,
+            content_en=None,
+            category="News",
+            date="2025-01-15",
+            url="https://example.com",
+            created_at=now,
+            updated_at=now,
+        )
 
-        result = await cache.delete_old_entries(days=90)
+        assert cache.is_cache_stale(cached) is False
 
-        assert result == 5
+    def test_is_cache_stale_old(self, cache):
+        """Test cache is stale when old."""
+        from datetime import timedelta
+
+        old_time = (datetime.now(timezone.utc) - timedelta(hours=12)).isoformat()
+        cached = CachedTranslation(
+            news_id="test123",
+            content_hash="hash123",
+            title_ja="日本語",
+            title_en="English",
+            content_ja=None,
+            content_en=None,
+            category="News",
+            date="2025-01-15",
+            url="https://example.com",
+            created_at=old_time,
+            updated_at=old_time,
+        )
+
+        assert cache.is_cache_stale(cached) is True
+
+    def test_is_cache_stale_custom_age(self, cache):
+        """Test cache staleness with custom max age."""
+        from datetime import timedelta
+
+        # 2 hours old
+        old_time = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+        cached = CachedTranslation(
+            news_id="test123",
+            content_hash="hash123",
+            title_ja="日本語",
+            title_en="English",
+            content_ja=None,
+            content_en=None,
+            category="News",
+            date="2025-01-15",
+            url="https://example.com",
+            created_at=old_time,
+            updated_at=old_time,
+        )
+
+        # Not stale with 6 hour window (default)
+        assert cache.is_cache_stale(cached, max_age_hours=6) is False
+        # Stale with 1 hour window
+        assert cache.is_cache_stale(cached, max_age_hours=1) is True
+
+    def test_is_cache_stale_invalid_timestamp(self, cache):
+        """Test cache is stale when timestamp is invalid."""
+        cached = CachedTranslation(
+            news_id="test123",
+            content_hash="hash123",
+            title_ja="日本語",
+            title_en="English",
+            content_ja=None,
+            content_en=None,
+            category="News",
+            date="2025-01-15",
+            url="https://example.com",
+            created_at="invalid",
+            updated_at="invalid",
+        )
+
+        assert cache.is_cache_stale(cached) is True
 
 
 class TestCachedTranslation:

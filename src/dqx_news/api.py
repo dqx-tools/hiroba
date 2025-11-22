@@ -155,7 +155,59 @@ def create_app(
         # Check cache first
         cached = await cache.get_translation(news_id)
 
+        # Return cached if we have full content and it's fresh (or not forcing refresh)
         if cached and cached.content_en and not refresh:
+            # Only revalidate content hash every few hours
+            if not cache.is_cache_stale(cached):
+                return NewsDetailResponse(
+                    id=cached.news_id,
+                    title_ja=cached.title_ja,
+                    title_en=cached.title_en,
+                    date=cached.date,
+                    url=cached.url,
+                    category=cached.category,
+                    category_ja=_get_japanese_category(cached.category),
+                    content_ja=cached.content_ja or "",
+                    content_en=cached.content_en,
+                    cached=True,
+                )
+
+        # Fetch fresh content from source
+        async with DQXNewsScraper() as scraper:
+            try:
+                detail = await scraper.get_news_detail(news_id)
+            except Exception as e:
+                # If fetch fails but we have cached content, return it
+                if cached and cached.content_en:
+                    return NewsDetailResponse(
+                        id=cached.news_id,
+                        title_ja=cached.title_ja,
+                        title_en=cached.title_en,
+                        date=cached.date,
+                        url=cached.url,
+                        category=cached.category,
+                        category_ja=_get_japanese_category(cached.category),
+                        content_ja=cached.content_ja or "",
+                        content_en=cached.content_en,
+                        cached=True,
+                    )
+                raise HTTPException(status_code=404, detail=f"News not found: {e}")
+
+        # Check if content has changed - if not, just update timestamp and return cached
+        content_hash = translator.compute_content_hash(detail.content_text)
+        if cached and cached.content_en and cached.content_hash == content_hash:
+            # Content unchanged, update timestamp and return cached translation
+            await cache.save_translation(
+                news_id=cached.news_id,
+                content_hash=cached.content_hash,
+                title_ja=cached.title_ja,
+                title_en=cached.title_en,
+                category=cached.category,
+                date=cached.date,
+                url=cached.url,
+                content_ja=cached.content_ja,
+                content_en=cached.content_en,
+            )
             return NewsDetailResponse(
                 id=cached.news_id,
                 title_ja=cached.title_ja,
@@ -169,23 +221,8 @@ def create_app(
                 cached=True,
             )
 
-        # Fetch and translate
-        async with DQXNewsScraper() as scraper:
-            try:
-                detail = await scraper.get_news_detail(news_id)
-            except Exception as e:
-                raise HTTPException(status_code=404, detail=f"News not found: {e}")
-
-        # Check if we can use cached translation
-        content_hash = translator.compute_content_hash(detail.content_text)
-        cached_valid = await cache.get_translation_if_valid(news_id, content_hash)
-
-        if cached_valid and cached_valid.content_en:
-            translated = await translator.translate_news_detail(
-                detail, cached_translation=cached_valid.content_en
-            )
-        else:
-            translated = await translator.translate_news_detail(detail)
+        # Content changed or no cache - translate fresh
+        translated = await translator.translate_news_detail(detail)
 
         # Save to cache
         await cache.save_translation(
