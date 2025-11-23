@@ -15,11 +15,9 @@ const BASE_URL = "https://hiroba.dqx.jp";
 const NEWS_LIST_URL = "/sc/news/category/{category}";
 const NEWS_DETAIL_URL = "/sc/news/detail/{news_id}/";
 
-// Japan Standard Time offset (UTC+9)
-const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
-
 /**
  * Parse a date string as JST and convert to ISO8601 format.
+ * Input is assumed to be in JST (Japan Standard Time, UTC+9).
  */
 function parseJstDateToIso8601(dateStr: string): string {
 	if (!dateStr) return "";
@@ -31,28 +29,14 @@ function parseJstDateToIso8601(dateStr: string): string {
 	let match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
 	if (match) {
 		const [, year, month, day, hour, minute] = match;
-		// Create UTC date, then adjust for JST display
-		const utcMs =
-			Date.UTC(
-				parseInt(year),
-				parseInt(month) - 1,
-				parseInt(day),
-				parseInt(hour),
-				parseInt(minute)
-			) - JST_OFFSET_MS;
-		const date = new Date(utcMs);
-		return date.toISOString().replace("Z", "+09:00");
+		return `${year}-${month}-${day}T${hour}:${minute}:00.000+09:00`;
 	}
 
 	// Try parsing date only: "2024-01-15"
 	match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
 	if (match) {
 		const [, year, month, day] = match;
-		const utcMs =
-			Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)) -
-			JST_OFFSET_MS;
-		const date = new Date(utcMs);
-		return date.toISOString().replace("Z", "+09:00");
+		return `${year}-${month}-${day}T00:00:00.000+09:00`;
 	}
 
 	// Return original if parsing fails
