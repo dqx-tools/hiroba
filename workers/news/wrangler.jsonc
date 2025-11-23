@@ -18,11 +18,12 @@
 	"vars": {
 		"OPENAI_MODEL": "gpt-5.1"
 	},
-	// Cron trigger for hourly news refresh
+	// Cron triggers for scheduled jobs
 	"triggers": {
 		"crons": [
-			"0 * * * *"
-		] // Every hour at minute 0
+			"0 * * * *", // Every hour at minute 0 - news refresh
+			"0 15 * * *" // Daily at 15:00 UTC (midnight JST) - glossary refresh
+		]
 	},
 	// Production environment
 	"env": {

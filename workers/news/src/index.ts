@@ -6,6 +6,7 @@ import { D1Cache } from "./cache";
 import { createApp } from "./api";
 import { DQXNewsScraper } from "./scraper";
 import { DQXTranslator, computeContentHash } from "./translator";
+import { fetchGlossary } from "./glossary";
 import { NewsCategory, type Env } from "./types";
 
 export default {
@@ -35,20 +36,49 @@ export default {
 	 * Handle scheduled cron jobs.
 	 */
 	async scheduled(
-		_controller: ScheduledController,
+		controller: ScheduledController,
 		env: Env,
 		_ctx: ExecutionContext
 	): Promise<void> {
 		const cache = new D1Cache(env.DB);
+
+		// Initialize cache schema if needed
+		await cache.initialize();
+
+		// Check which cron triggered (by schedule pattern)
+		// "0 15 * * *" = glossary refresh (daily at midnight JST)
+		// "0 * * * *" = news refresh (hourly)
+		const isGlossaryRefresh = controller.cron === "0 15 * * *";
+
+		if (isGlossaryRefresh) {
+			await this.refreshGlossary(cache);
+		} else {
+			await this.refreshNews(cache, env);
+		}
+	},
+
+	/**
+	 * Refresh the glossary from GitHub.
+	 */
+	async refreshGlossary(cache: D1Cache): Promise<void> {
+		try {
+			const entries = await fetchGlossary();
+			const count = await cache.updateGlossary(entries);
+			console.log(`Glossary refresh complete: ${count} entries loaded`);
+		} catch (error) {
+			console.error("Glossary refresh failed:", error);
+		}
+	},
+
+	/**
+	 * Refresh news listings from all categories.
+	 */
+	async refreshNews(cache: D1Cache, env: Env): Promise<void> {
 		const translator = new DQXTranslator(
 			env.OPENAI_API_KEY,
 			env.OPENAI_MODEL || "gpt-4.5-preview"
 		);
 
-		// Initialize cache schema if needed
-		await cache.initialize();
-
-		// Refresh all categories
 		let refreshed = 0;
 		let errors = 0;
 
@@ -72,9 +102,15 @@ export default {
 							continue;
 						}
 
+						// Find matching glossary entries for the title
+						const glossaryEntries =
+							await cache.findMatchingGlossaryEntries(item.title);
+
 						// Translate title only for listing
-						const translated =
-							await translator.translateNewsItem(item);
+						const translated = await translator.translateNewsItem(
+							item,
+							glossaryEntries
+						);
 
 						// Save to cache (without full content)
 						const contentHash = await computeContentHash(item.title);

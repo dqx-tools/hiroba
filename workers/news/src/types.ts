@@ -162,3 +162,13 @@ export interface CategoryInfo {
 	name: string;
 	name_ja: string;
 }
+
+/**
+ * Glossary entry for translation assistance.
+ */
+export interface GlossaryEntry {
+	id?: number;
+	japanese_text: string;
+	english_text: string;
+	updated_at?: string;
+}

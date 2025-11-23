@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { D1Cache } from "./cache";
 import { DQXNewsScraper } from "./scraper";
 import { DQXTranslator, computeContentHash } from "./translator";
+import { fetchGlossary } from "./glossary";
 import {
 	NewsCategory,
 	CATEGORY_ENGLISH_NAMES,
@@ -79,8 +80,15 @@ async function refreshListings(
 						continue;
 					}
 
+					// Find matching glossary entries for the title
+					const glossaryEntries =
+						await cache.findMatchingGlossaryEntries(item.title);
+
 					// Translate title only for listing
-					const translated = await translator.translateNewsItem(item);
+					const translated = await translator.translateNewsItem(
+						item,
+						glossaryEntries
+					);
 
 					// Save to cache (without full content)
 					const contentHash = await computeContentHash(item.title);
@@ -126,6 +134,8 @@ export function createApp(
 				categories: "/categories",
 				refresh: "/refresh",
 				seed: "/seed",
+				glossary: "/glossary",
+				glossary_refresh: "/glossary/refresh",
 			},
 		});
 	});
@@ -337,9 +347,18 @@ export function createApp(
 			return c.json({ error: "Translation in progress, please retry" }, 503);
 		}
 
-		// We have the lock - translate
+		// We have the lock - translate with glossary
 		try {
-			const translated = await translator.translateNewsDetail(detail);
+			// Find matching glossary entries for both title and content
+			const glossaryEntries = await cache.findMatchingGlossaryEntries(
+				detail.title + " " + detail.contentText
+			);
+
+			const translated = await translator.translateNewsDetail(
+				detail,
+				undefined,
+				glossaryEntries
+			);
 
 			// Save to cache
 			await cache.saveTranslation({
@@ -495,6 +514,50 @@ export function createApp(
 			message: `Seeded ${seeded} items, skipped ${skipped} existing, ${errors} errors`,
 			categories: categoryStats,
 		});
+	});
+
+	// Glossary status endpoint
+	app.get("/glossary", async (c) => {
+		const count = await cache.getGlossaryCount();
+		const limit = Math.min(
+			Math.max(parseInt(c.req.query("limit") || "20"), 1),
+			100
+		);
+		const offset = Math.max(parseInt(c.req.query("offset") || "0"), 0);
+
+		const entries = await cache.getAllGlossaryEntries(limit, offset);
+
+		return c.json({
+			total: count,
+			limit,
+			offset,
+			entries: entries.map((e) => ({
+				japanese: e.japanese_text,
+				english: e.english_text,
+			})),
+		});
+	});
+
+	// Glossary refresh endpoint
+	app.post("/glossary/refresh", async (c) => {
+		try {
+			const entries = await fetchGlossary();
+			const count = await cache.updateGlossary(entries);
+
+			return c.json({
+				success: true,
+				count,
+				message: `Glossary refreshed with ${count} entries`,
+			});
+		} catch (error) {
+			return c.json(
+				{
+					success: false,
+					error: `Failed to refresh glossary: ${error}`,
+				},
+				500
+			);
+		}
 	});
 
 	return app;

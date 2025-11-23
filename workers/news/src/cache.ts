@@ -2,7 +2,7 @@
  * Cloudflare D1 caching layer for translations.
  */
 
-import type { CachedTranslation } from "./types";
+import type { CachedTranslation, GlossaryEntry } from "./types";
 
 /** How long to wait for an in-progress translation (ms) */
 const TRANSLATION_WAIT_TIMEOUT_MS = 60_000;
@@ -36,10 +36,20 @@ CREATE TABLE IF NOT EXISTS translation_locks (
 );
 `;
 
+const CREATE_GLOSSARY_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS glossary (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    japanese_text TEXT NOT NULL UNIQUE,
+    english_text TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+`;
+
 const CREATE_INDEX_SQLS = [
 	"CREATE INDEX IF NOT EXISTS idx_news_category ON news_translations(category)",
 	"CREATE INDEX IF NOT EXISTS idx_news_date ON news_translations(date DESC)",
 	"CREATE INDEX IF NOT EXISTS idx_news_updated ON news_translations(updated_at DESC)",
+	"CREATE INDEX IF NOT EXISTS idx_glossary_japanese ON glossary(japanese_text)",
 ];
 
 /**
@@ -54,6 +64,7 @@ export class D1Cache {
 	async initialize(): Promise<void> {
 		await this.db.prepare(CREATE_TRANSLATIONS_TABLE_SQL).run();
 		await this.db.prepare(CREATE_LOCKS_TABLE_SQL).run();
+		await this.db.prepare(CREATE_GLOSSARY_TABLE_SQL).run();
 		for (const sql of CREATE_INDEX_SQLS) {
 			await this.db.prepare(sql).run();
 		}
@@ -304,5 +315,86 @@ export class D1Cache {
 
 		// Timeout
 		return null;
+	}
+
+	// ============ Glossary Operations ============
+
+	/**
+	 * Update the glossary with new entries (full replacement).
+	 * Clears existing entries and inserts new ones.
+	 */
+	async updateGlossary(entries: GlossaryEntry[]): Promise<number> {
+		const now = new Date().toISOString();
+
+		// Clear existing glossary
+		await this.db.prepare("DELETE FROM glossary").run();
+
+		// Insert in batches to avoid hitting query limits
+		const BATCH_SIZE = 100;
+		let inserted = 0;
+
+		for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+			const batch = entries.slice(i, i + BATCH_SIZE);
+			const placeholders = batch.map(() => "(?, ?, ?)").join(", ");
+			const values = batch.flatMap((e) => [
+				e.japanese_text,
+				e.english_text,
+				now,
+			]);
+
+			await this.db
+				.prepare(
+					`INSERT OR REPLACE INTO glossary (japanese_text, english_text, updated_at) VALUES ${placeholders}`
+				)
+				.bind(...values)
+				.run();
+
+			inserted += batch.length;
+		}
+
+		return inserted;
+	}
+
+	/**
+	 * Find glossary entries that match substrings in the given text.
+	 * Returns entries where the Japanese text appears in the input.
+	 */
+	async findMatchingGlossaryEntries(text: string): Promise<GlossaryEntry[]> {
+		if (!text.trim()) return [];
+
+		// Get all glossary entries and filter in-memory for substring matching
+		// D1 doesn't support efficient substring search, so we fetch all and filter
+		const result = await this.db
+			.prepare("SELECT japanese_text, english_text FROM glossary")
+			.all<GlossaryEntry>();
+
+		const entries = result.results ?? [];
+		return entries.filter((entry) => text.includes(entry.japanese_text));
+	}
+
+	/**
+	 * Get the count of glossary entries.
+	 */
+	async getGlossaryCount(): Promise<number> {
+		const result = await this.db
+			.prepare("SELECT COUNT(*) as count FROM glossary")
+			.first<{ count: number }>();
+		return result?.count ?? 0;
+	}
+
+	/**
+	 * Get all glossary entries (for debugging/admin).
+	 */
+	async getAllGlossaryEntries(
+		limit: number = 100,
+		offset: number = 0
+	): Promise<GlossaryEntry[]> {
+		const result = await this.db
+			.prepare(
+				"SELECT japanese_text, english_text, updated_at FROM glossary LIMIT ? OFFSET ?"
+			)
+			.bind(limit, offset)
+			.all<GlossaryEntry>();
+		return result.results ?? [];
 	}
 }

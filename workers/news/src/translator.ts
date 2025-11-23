@@ -11,7 +11,9 @@ import {
 	type NewsDetail,
 	type TranslatedNewsItem,
 	type TranslatedNewsDetail,
+	type GlossaryEntry,
 } from "./types";
+import { formatGlossaryForPrompt } from "./glossary";
 
 const TITLE_SYSTEM_PROMPT = `You are a professional translator specializing in Japanese video game content,
 particularly Dragon Quest X (DQX) online game. Translate the following Japanese text to natural English.
@@ -56,14 +58,22 @@ export class DQXTranslator {
 	/**
 	 * Translate a news title.
 	 */
-	async translateTitle(title: string): Promise<string> {
+	async translateTitle(
+		title: string,
+		glossaryEntries?: GlossaryEntry[]
+	): Promise<string> {
 		if (!title.trim()) return "";
+
+		const glossaryPrompt = formatGlossaryForPrompt(glossaryEntries ?? []);
+		const systemPrompt = glossaryPrompt
+			? `${TITLE_SYSTEM_PROMPT}\n${glossaryPrompt}`
+			: TITLE_SYSTEM_PROMPT;
 
 		const response = await this.client.chat.completions.create({
 			model: this.model,
 			temperature: 0.3,
 			messages: [
-				{ role: "system", content: TITLE_SYSTEM_PROMPT },
+				{ role: "system", content: systemPrompt },
 				{
 					role: "user",
 					content: `Translate this Japanese title to English:\n\n${title}`,
@@ -77,14 +87,22 @@ export class DQXTranslator {
 	/**
 	 * Translate news content.
 	 */
-	async translateContent(content: string): Promise<string> {
+	async translateContent(
+		content: string,
+		glossaryEntries?: GlossaryEntry[]
+	): Promise<string> {
 		if (!content.trim()) return "";
+
+		const glossaryPrompt = formatGlossaryForPrompt(glossaryEntries ?? []);
+		const systemPrompt = glossaryPrompt
+			? `${CONTENT_SYSTEM_PROMPT}\n${glossaryPrompt}`
+			: CONTENT_SYSTEM_PROMPT;
 
 		const response = await this.client.chat.completions.create({
 			model: this.model,
 			temperature: 0.3,
 			messages: [
-				{ role: "system", content: CONTENT_SYSTEM_PROMPT },
+				{ role: "system", content: systemPrompt },
 				{
 					role: "user",
 					content: `Translate this Japanese content to English:\n\n${content}`,
@@ -98,8 +116,11 @@ export class DQXTranslator {
 	/**
 	 * Translate a news listing item.
 	 */
-	async translateNewsItem(item: NewsItem): Promise<TranslatedNewsItem> {
-		const titleEn = await this.translateTitle(item.title);
+	async translateNewsItem(
+		item: NewsItem,
+		glossaryEntries?: GlossaryEntry[]
+	): Promise<TranslatedNewsItem> {
+		const titleEn = await this.translateTitle(item.title, glossaryEntries);
 
 		return {
 			id: item.id,
@@ -117,15 +138,16 @@ export class DQXTranslator {
 	 */
 	async translateNewsDetail(
 		detail: NewsDetail,
-		cachedTranslation?: string
+		cachedTranslation?: string,
+		glossaryEntries?: GlossaryEntry[]
 	): Promise<TranslatedNewsDetail> {
-		const titleEn = await this.translateTitle(detail.title);
+		const titleEn = await this.translateTitle(detail.title, glossaryEntries);
 		const contentHash = await computeContentHash(detail.contentText);
 
 		// Use cached translation if content hasn't changed
 		const contentEn = cachedTranslation
 			? cachedTranslation
-			: await this.translateContent(detail.contentText);
+			: await this.translateContent(detail.contentText, glossaryEntries);
 
 		return {
 			id: detail.id,
