@@ -4,9 +4,6 @@
 
 import type { CachedTranslation } from "./types";
 
-/** Marker used to indicate a translation is in progress */
-const TRANSLATING_MARKER = "__TRANSLATING__";
-
 /** How long to wait for an in-progress translation (ms) */
 const TRANSLATION_WAIT_TIMEOUT_MS = 60_000;
 
@@ -16,7 +13,7 @@ const TRANSLATION_POLL_INTERVAL_MS = 500;
 /** Max age for a stale translation lock before we consider it abandoned (ms) */
 const TRANSLATION_LOCK_TIMEOUT_MS = 120_000;
 
-const CREATE_TABLE_SQL = `
+const CREATE_TRANSLATIONS_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS news_translations (
     news_id TEXT PRIMARY KEY,
     content_hash TEXT NOT NULL,
@@ -29,6 +26,13 @@ CREATE TABLE IF NOT EXISTS news_translations (
     url TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
+);
+`;
+
+const CREATE_LOCKS_TABLE_SQL = `
+CREATE TABLE IF NOT EXISTS translation_locks (
+    news_id TEXT PRIMARY KEY,
+    locked_at TEXT NOT NULL
 );
 `;
 
@@ -48,7 +52,8 @@ export class D1Cache {
 	 * Initialize the database schema.
 	 */
 	async initialize(): Promise<void> {
-		await this.db.prepare(CREATE_TABLE_SQL).run();
+		await this.db.prepare(CREATE_TRANSLATIONS_TABLE_SQL).run();
+		await this.db.prepare(CREATE_LOCKS_TABLE_SQL).run();
 		for (const sql of CREATE_INDEX_SQLS) {
 			await this.db.prepare(sql).run();
 		}
@@ -99,21 +104,21 @@ export class D1Cache {
 		await this.db
 			.prepare(
 				`
-                INSERT INTO news_translations
-                    (news_id, content_hash, title_ja, title_en, content_ja, content_en,
-                     category, date, url, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(news_id) DO UPDATE SET
-                    content_hash = excluded.content_hash,
-                    title_ja = excluded.title_ja,
-                    title_en = excluded.title_en,
-                    content_ja = excluded.content_ja,
-                    content_en = excluded.content_en,
-                    category = excluded.category,
-                    date = excluded.date,
-                    url = excluded.url,
-                    updated_at = excluded.updated_at
-            `
+				INSERT INTO news_translations
+					(news_id, content_hash, title_ja, title_en, content_ja, content_en,
+					 category, date, url, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ON CONFLICT(news_id) DO UPDATE SET
+					content_hash = excluded.content_hash,
+					title_ja = excluded.title_ja,
+					title_en = excluded.title_en,
+					content_ja = excluded.content_ja,
+					content_en = excluded.content_en,
+					category = excluded.category,
+					date = excluded.date,
+					url = excluded.url,
+					updated_at = excluded.updated_at
+			`
 			)
 			.bind(
 				params.newsId,
@@ -146,21 +151,21 @@ export class D1Cache {
 			stmt = this.db
 				.prepare(
 					`
-                    SELECT * FROM news_translations
-                    WHERE category = ?
-                    ORDER BY date DESC
-                    LIMIT ? OFFSET ?
-                `
+					SELECT * FROM news_translations
+					WHERE category = ?
+					ORDER BY date DESC
+					LIMIT ? OFFSET ?
+				`
 				)
 				.bind(category, limit, offset);
 		} else {
 			stmt = this.db
 				.prepare(
 					`
-                    SELECT * FROM news_translations
-                    ORDER BY date DESC
-                    LIMIT ? OFFSET ?
-                `
+					SELECT * FROM news_translations
+					ORDER BY date DESC
+					LIMIT ? OFFSET ?
+				`
 				)
 				.bind(limit, offset);
 		}
@@ -205,24 +210,29 @@ export class D1Cache {
 		}
 	}
 
-	/**
-	 * Check if a cached entry represents an in-progress translation.
-	 */
-	isTranslating(cached: CachedTranslation): boolean {
-		return cached.content_hash === TRANSLATING_MARKER;
-	}
+	// ============ Translation Locking ============
 
 	/**
-	 * Check if a translation lock is stale (abandoned).
+	 * Check if a news item is currently being translated.
 	 */
-	private isLockStale(cached: CachedTranslation): boolean {
-		try {
-			const updated = new Date(cached.updated_at);
-			const now = new Date();
-			return now.getTime() - updated.getTime() > TRANSLATION_LOCK_TIMEOUT_MS;
-		} catch {
-			return true;
+	async isTranslationLocked(newsId: string): Promise<boolean> {
+		const lock = await this.db
+			.prepare("SELECT locked_at FROM translation_locks WHERE news_id = ?")
+			.bind(newsId)
+			.first<{ locked_at: string }>();
+
+		if (!lock) return false;
+
+		// Check if lock is stale
+		const lockedAt = new Date(lock.locked_at);
+		const now = new Date();
+		if (now.getTime() - lockedAt.getTime() > TRANSLATION_LOCK_TIMEOUT_MS) {
+			// Stale lock - clean it up
+			await this.releaseTranslationLock(newsId);
+			return false;
 		}
+
+		return true;
 	}
 
 	/**
@@ -232,60 +242,37 @@ export class D1Cache {
 	async tryAcquireTranslationLock(newsId: string): Promise<boolean> {
 		const now = new Date().toISOString();
 
-		// First check if there's an existing entry
-		const existing = await this.getTranslation(newsId);
+		// Clean up any stale locks first
+		await this.db
+			.prepare(
+				"DELETE FROM translation_locks WHERE locked_at < ?"
+			)
+			.bind(new Date(Date.now() - TRANSLATION_LOCK_TIMEOUT_MS).toISOString())
+			.run();
 
-		if (existing) {
-			// If it's translating and the lock is not stale, someone else has it
-			if (this.isTranslating(existing) && !this.isLockStale(existing)) {
-				return false;
-			}
-
-			// If it has content and hash isn't the marker, it's already translated
-			if (existing.content_en && existing.content_hash !== TRANSLATING_MARKER) {
-				return false;
-			}
-
-			// Lock is stale or entry needs translation - try to update it
-			const result = await this.db
-				.prepare(
-					`
-					UPDATE news_translations
-					SET content_hash = ?, updated_at = ?
-					WHERE news_id = ?
-					AND (content_hash = ? OR content_hash = ? OR updated_at < ?)
-					`
-				)
-				.bind(
-					TRANSLATING_MARKER,
-					now,
-					newsId,
-					TRANSLATING_MARKER, // Was already translating (stale)
-					existing.content_hash, // Hasn't changed
-					new Date(Date.now() - TRANSLATION_LOCK_TIMEOUT_MS).toISOString()
-				)
-				.run();
-
-			return (result.meta.changes ?? 0) > 0;
-		}
-
-		// No existing entry - try to insert a new lock
+		// Try to insert a lock - will fail if one exists
 		try {
 			await this.db
 				.prepare(
-					`
-					INSERT INTO news_translations
-						(news_id, content_hash, title_ja, title_en, category, date, url, created_at, updated_at)
-					VALUES (?, ?, '', '', '', '', '', ?, ?)
-					`
+					"INSERT INTO translation_locks (news_id, locked_at) VALUES (?, ?)"
 				)
-				.bind(newsId, TRANSLATING_MARKER, now, now)
+				.bind(newsId, now)
 				.run();
 			return true;
 		} catch {
-			// Insert failed - likely a race condition where another worker inserted first
+			// Lock already exists
 			return false;
 		}
+	}
+
+	/**
+	 * Release a translation lock.
+	 */
+	async releaseTranslationLock(newsId: string): Promise<void> {
+		await this.db
+			.prepare("DELETE FROM translation_locks WHERE news_id = ?")
+			.bind(newsId)
+			.run();
 	}
 
 	/**
@@ -296,24 +283,20 @@ export class D1Cache {
 		const startTime = Date.now();
 
 		while (Date.now() - startTime < TRANSLATION_WAIT_TIMEOUT_MS) {
-			const cached = await this.getTranslation(newsId);
+			// Check if lock is still held
+			const isLocked = await this.isTranslationLocked(newsId);
 
-			if (!cached) {
-				// Entry was deleted - translation failed
+			if (!isLocked) {
+				// Lock released - check if we have a translation now
+				const cached = await this.getTranslation(newsId);
+				if (cached?.content_en) {
+					return cached;
+				}
+				// No translation - the other worker must have failed
 				return null;
 			}
 
-			if (!this.isTranslating(cached)) {
-				// Translation complete
-				return cached;
-			}
-
-			if (this.isLockStale(cached)) {
-				// Lock is stale - translation likely failed
-				return null;
-			}
-
-			// Still translating - wait and poll again
+			// Still locked - wait and poll again
 			await new Promise((resolve) =>
 				setTimeout(resolve, TRANSLATION_POLL_INTERVAL_MS)
 			);
@@ -321,18 +304,5 @@ export class D1Cache {
 
 		// Timeout
 		return null;
-	}
-
-	/**
-	 * Release a translation lock by deleting the placeholder entry.
-	 * Call this if translation fails after acquiring the lock.
-	 */
-	async releaseTranslationLock(newsId: string): Promise<void> {
-		await this.db
-			.prepare(
-				`DELETE FROM news_translations WHERE news_id = ? AND content_hash = ?`
-			)
-			.bind(newsId, TRANSLATING_MARKER)
-			.run();
 	}
 }

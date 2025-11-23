@@ -125,6 +125,7 @@ export function createApp(
 				news_detail: "/news/{news_id}",
 				categories: "/categories",
 				refresh: "/refresh",
+				seed: "/seed",
 			},
 		});
 	});
@@ -197,19 +198,29 @@ export function createApp(
 		const newsId = c.req.param("news_id");
 		const refresh = c.req.query("refresh") === "true";
 
-		// Check cache first
-		let cached = await cache.getTranslation(newsId);
-
-		// If another worker is translating, wait for it
-		if (cached && cache.isTranslating(cached)) {
+		// Check if another worker is translating
+		if (await cache.isTranslationLocked(newsId)) {
 			const completed = await cache.waitForTranslation(newsId);
-			if (completed) {
-				cached = completed;
-			} else {
-				// Translation failed or timed out - we'll try ourselves
-				cached = null;
+			if (completed?.content_en) {
+				const response: NewsDetailResponse = {
+					id: completed.news_id,
+					title_ja: completed.title_ja,
+					title_en: completed.title_en,
+					date: completed.date,
+					url: completed.url,
+					category: completed.category,
+					category_ja: getJapaneseCategory(completed.category),
+					content_ja: completed.content_ja || "",
+					content_en: completed.content_en,
+					cached: true,
+				};
+				return c.json(response);
 			}
+			// Fall through to try ourselves
 		}
+
+		// Check cache
+		let cached = await cache.getTranslation(newsId);
 
 		// Return cached if we have full content and it's fresh
 		if (cached && cached.content_en && !refresh) {
@@ -330,7 +341,7 @@ export function createApp(
 		try {
 			const translated = await translator.translateNewsDetail(detail);
 
-			// Save to cache (this also releases the lock by overwriting the marker)
+			// Save to cache
 			await cache.saveTranslation({
 				newsId: translated.id,
 				contentHash: translated.contentHash,
@@ -342,6 +353,9 @@ export function createApp(
 				contentJa: translated.contentJa,
 				contentEn: translated.contentEn,
 			});
+
+			// Release the lock
+			await cache.releaseTranslationLock(newsId);
 
 			const response: NewsDetailResponse = {
 				id: translated.id,
@@ -389,6 +403,98 @@ export function createApp(
 	// Health check endpoint
 	app.get("/health", (c) => {
 		return c.json({ status: "healthy" });
+	});
+
+	// Pre-seed endpoint - scrape all pages without translation
+	app.post("/seed", async (c) => {
+		const categoryParam = c.req.query("category");
+		const maxPages = Math.min(
+			Math.max(parseInt(c.req.query("max_pages") || "100"), 1),
+			200
+		);
+
+		// Determine categories to seed
+		let categories: NewsCategory[];
+		if (categoryParam) {
+			const categoryMap: Record<string, NewsCategory> = {
+				news: NewsCategory.NEWS,
+				events: NewsCategory.EVENTS,
+				updates: NewsCategory.UPDATES,
+				maintenance: NewsCategory.MAINTENANCE,
+			};
+			const cat = categoryMap[categoryParam.toLowerCase()];
+			if (cat === undefined) {
+				return c.json({ error: "Invalid category" }, 400);
+			}
+			categories = [cat];
+		} else {
+			categories = [
+				NewsCategory.NEWS,
+				NewsCategory.EVENTS,
+				NewsCategory.UPDATES,
+				NewsCategory.MAINTENANCE,
+			];
+		}
+
+		const scraper = new DQXNewsScraper();
+		let seeded = 0;
+		let skipped = 0;
+		let errors = 0;
+		const categoryStats: Record<string, { seeded: number; pages: number }> = {};
+
+		for (const category of categories) {
+			const categoryName = CATEGORY_ENGLISH_NAMES[category];
+			categoryStats[categoryName] = { seeded: 0, pages: 0 };
+
+			for (let page = 1; page <= maxPages; page++) {
+				try {
+					const { items, totalPages } = await scraper.getNewsListing(category, page);
+					categoryStats[categoryName].pages = Math.max(categoryStats[categoryName].pages, totalPages);
+
+					for (const item of items) {
+						try {
+							// Check if already exists
+							const existing = await cache.getTranslation(item.id);
+							if (existing) {
+								skipped++;
+								continue;
+							}
+
+							// Save without translation (empty English fields)
+							await cache.saveTranslation({
+								newsId: item.id,
+								contentHash: "",
+								titleJa: item.title,
+								titleEn: "", // Empty - needs translation
+								category: categoryName,
+								date: item.date,
+								url: item.url,
+							});
+							seeded++;
+							categoryStats[categoryName].seeded++;
+						} catch {
+							errors++;
+						}
+					}
+
+					// Stop if we've reached the last page
+					if (page >= totalPages) {
+						break;
+					}
+				} catch {
+					errors++;
+					break; // Stop this category on error
+				}
+			}
+		}
+
+		return c.json({
+			seeded,
+			skipped,
+			errors,
+			message: `Seeded ${seeded} items, skipped ${skipped} existing, ${errors} errors`,
+			categories: categoryStats,
+		});
 	});
 
 	return app;
