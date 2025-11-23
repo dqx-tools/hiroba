@@ -3,9 +3,8 @@
   // Deploy using: npx wrangler deploy (from this directory)
 
   "name": "dqx-banner-api",
-  "main": "worker.py",
+  "main": "src/index.ts",
   "compatibility_date": "2025-11-02",
-  "compatibility_flags": ["python_workers"],
 
   "observability": {
     "enabled": true
