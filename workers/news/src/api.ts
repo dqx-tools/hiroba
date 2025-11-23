@@ -198,7 +198,18 @@ export function createApp(
 		const refresh = c.req.query("refresh") === "true";
 
 		// Check cache first
-		const cached = await cache.getTranslation(newsId);
+		let cached = await cache.getTranslation(newsId);
+
+		// If another worker is translating, wait for it
+		if (cached && cache.isTranslating(cached)) {
+			const completed = await cache.waitForTranslation(newsId);
+			if (completed) {
+				cached = completed;
+			} else {
+				// Translation failed or timed out - we'll try ourselves
+				cached = null;
+			}
+		}
 
 		// Return cached if we have full content and it's fresh
 		if (cached && cached.content_en && !refresh) {
@@ -275,35 +286,81 @@ export function createApp(
 			return c.json(response);
 		}
 
-		// Content changed or no cache - translate fresh
-		const translated = await translator.translateNewsDetail(detail);
+		// Need to translate - try to acquire lock
+		const lockAcquired = await cache.tryAcquireTranslationLock(newsId);
 
-		// Save to cache
-		await cache.saveTranslation({
-			newsId: translated.id,
-			contentHash: translated.contentHash,
-			titleJa: translated.titleJa,
-			titleEn: translated.titleEn,
-			category: translated.category,
-			date: translated.date,
-			url: translated.url,
-			contentJa: translated.contentJa,
-			contentEn: translated.contentEn,
-		});
+		if (!lockAcquired) {
+			// Another worker is translating - wait for it
+			const completed = await cache.waitForTranslation(newsId);
+			if (completed && completed.content_en) {
+				const response: NewsDetailResponse = {
+					id: completed.news_id,
+					title_ja: completed.title_ja,
+					title_en: completed.title_en,
+					date: completed.date,
+					url: completed.url,
+					category: completed.category,
+					category_ja: getJapaneseCategory(completed.category),
+					content_ja: completed.content_ja || "",
+					content_en: completed.content_en,
+					cached: true,
+				};
+				return c.json(response);
+			}
+			// Translation failed - return error or stale cache
+			if (cached && cached.content_en) {
+				const response: NewsDetailResponse = {
+					id: cached.news_id,
+					title_ja: cached.title_ja,
+					title_en: cached.title_en,
+					date: cached.date,
+					url: cached.url,
+					category: cached.category,
+					category_ja: getJapaneseCategory(cached.category),
+					content_ja: cached.content_ja || "",
+					content_en: cached.content_en,
+					cached: true,
+				};
+				return c.json(response);
+			}
+			return c.json({ error: "Translation in progress, please retry" }, 503);
+		}
 
-		const response: NewsDetailResponse = {
-			id: translated.id,
-			title_ja: translated.titleJa,
-			title_en: translated.titleEn,
-			date: translated.date,
-			url: translated.url,
-			category: translated.category,
-			category_ja: translated.categoryJa,
-			content_ja: translated.contentJa,
-			content_en: translated.contentEn,
-			cached: false,
-		};
-		return c.json(response);
+		// We have the lock - translate
+		try {
+			const translated = await translator.translateNewsDetail(detail);
+
+			// Save to cache (this also releases the lock by overwriting the marker)
+			await cache.saveTranslation({
+				newsId: translated.id,
+				contentHash: translated.contentHash,
+				titleJa: translated.titleJa,
+				titleEn: translated.titleEn,
+				category: translated.category,
+				date: translated.date,
+				url: translated.url,
+				contentJa: translated.contentJa,
+				contentEn: translated.contentEn,
+			});
+
+			const response: NewsDetailResponse = {
+				id: translated.id,
+				title_ja: translated.titleJa,
+				title_en: translated.titleEn,
+				date: translated.date,
+				url: translated.url,
+				category: translated.category,
+				category_ja: translated.categoryJa,
+				content_ja: translated.contentJa,
+				content_en: translated.contentEn,
+				cached: false,
+			};
+			return c.json(response);
+		} catch (e) {
+			// Translation failed - release lock
+			await cache.releaseTranslationLock(newsId);
+			return c.json({ error: `Translation failed: ${e}` }, 500);
+		}
 	});
 
 	// Refresh endpoint

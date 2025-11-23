@@ -4,6 +4,18 @@
 
 import type { CachedTranslation } from "./types";
 
+/** Marker used to indicate a translation is in progress */
+const TRANSLATING_MARKER = "__TRANSLATING__";
+
+/** How long to wait for an in-progress translation (ms) */
+const TRANSLATION_WAIT_TIMEOUT_MS = 60_000;
+
+/** Polling interval when waiting for translation (ms) */
+const TRANSLATION_POLL_INTERVAL_MS = 500;
+
+/** Max age for a stale translation lock before we consider it abandoned (ms) */
+const TRANSLATION_LOCK_TIMEOUT_MS = 120_000;
+
 const CREATE_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS news_translations (
     news_id TEXT PRIMARY KEY,
@@ -191,5 +203,136 @@ export class D1Cache {
 		} catch {
 			return true; // Revalidate if we can't parse the timestamp
 		}
+	}
+
+	/**
+	 * Check if a cached entry represents an in-progress translation.
+	 */
+	isTranslating(cached: CachedTranslation): boolean {
+		return cached.content_hash === TRANSLATING_MARKER;
+	}
+
+	/**
+	 * Check if a translation lock is stale (abandoned).
+	 */
+	private isLockStale(cached: CachedTranslation): boolean {
+		try {
+			const updated = new Date(cached.updated_at);
+			const now = new Date();
+			return now.getTime() - updated.getTime() > TRANSLATION_LOCK_TIMEOUT_MS;
+		} catch {
+			return true;
+		}
+	}
+
+	/**
+	 * Try to acquire a translation lock for a news item.
+	 * Returns true if lock was acquired, false if another worker is already translating.
+	 */
+	async tryAcquireTranslationLock(newsId: string): Promise<boolean> {
+		const now = new Date().toISOString();
+
+		// First check if there's an existing entry
+		const existing = await this.getTranslation(newsId);
+
+		if (existing) {
+			// If it's translating and the lock is not stale, someone else has it
+			if (this.isTranslating(existing) && !this.isLockStale(existing)) {
+				return false;
+			}
+
+			// If it has content and hash isn't the marker, it's already translated
+			if (existing.content_en && existing.content_hash !== TRANSLATING_MARKER) {
+				return false;
+			}
+
+			// Lock is stale or entry needs translation - try to update it
+			const result = await this.db
+				.prepare(
+					`
+					UPDATE news_translations
+					SET content_hash = ?, updated_at = ?
+					WHERE news_id = ?
+					AND (content_hash = ? OR content_hash = ? OR updated_at < ?)
+					`
+				)
+				.bind(
+					TRANSLATING_MARKER,
+					now,
+					newsId,
+					TRANSLATING_MARKER, // Was already translating (stale)
+					existing.content_hash, // Hasn't changed
+					new Date(Date.now() - TRANSLATION_LOCK_TIMEOUT_MS).toISOString()
+				)
+				.run();
+
+			return (result.meta.changes ?? 0) > 0;
+		}
+
+		// No existing entry - try to insert a new lock
+		try {
+			await this.db
+				.prepare(
+					`
+					INSERT INTO news_translations
+						(news_id, content_hash, title_ja, title_en, category, date, url, created_at, updated_at)
+					VALUES (?, ?, '', '', '', '', '', ?, ?)
+					`
+				)
+				.bind(newsId, TRANSLATING_MARKER, now, now)
+				.run();
+			return true;
+		} catch {
+			// Insert failed - likely a race condition where another worker inserted first
+			return false;
+		}
+	}
+
+	/**
+	 * Wait for an in-progress translation to complete.
+	 * Returns the completed translation, or null if timeout/error.
+	 */
+	async waitForTranslation(newsId: string): Promise<CachedTranslation | null> {
+		const startTime = Date.now();
+
+		while (Date.now() - startTime < TRANSLATION_WAIT_TIMEOUT_MS) {
+			const cached = await this.getTranslation(newsId);
+
+			if (!cached) {
+				// Entry was deleted - translation failed
+				return null;
+			}
+
+			if (!this.isTranslating(cached)) {
+				// Translation complete
+				return cached;
+			}
+
+			if (this.isLockStale(cached)) {
+				// Lock is stale - translation likely failed
+				return null;
+			}
+
+			// Still translating - wait and poll again
+			await new Promise((resolve) =>
+				setTimeout(resolve, TRANSLATION_POLL_INTERVAL_MS)
+			);
+		}
+
+		// Timeout
+		return null;
+	}
+
+	/**
+	 * Release a translation lock by deleting the placeholder entry.
+	 * Call this if translation fails after acquiring the lock.
+	 */
+	async releaseTranslationLock(newsId: string): Promise<void> {
+		await this.db
+			.prepare(
+				`DELETE FROM news_translations WHERE news_id = ? AND content_hash = ?`
+			)
+			.bind(newsId, TRANSLATING_MARKER)
+			.run();
 	}
 }
