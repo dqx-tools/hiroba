@@ -1,11 +1,8 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "dqx-tools--news",
-	"main": "src/worker.py",
+	"main": "src/index.ts",
 	"compatibility_date": "2025-11-21",
-	"compatibility_flags": [
-		"python_workers"
-	],
 	"observability": {
 		"enabled": true
 	},
