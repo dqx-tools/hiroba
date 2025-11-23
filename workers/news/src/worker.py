@@ -28,7 +28,7 @@ class D1DatabaseWrapper:
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
         import asgi
-        from src.dqx_news.api import create_app
+        from dqx_news.api import create_app
 
         # Get configuration from environment
         openai_api_key = self.env.OPENAI_API_KEY
@@ -49,9 +49,9 @@ class Default(WorkerEntrypoint):
 
         This is triggered by cron jobs to refresh news listings.
         """
-        from src.dqx_news.cache import D1Cache
-        from src.dqx_news.scraper import DQXNewsScraper, NewsCategory
-        from src.dqx_news.translator import DQXTranslator
+        from dqx_news.cache import D1Cache
+        from dqx_news.scraper import DQXNewsScraper, NewsCategory
+        from dqx_news.translator import DQXTranslator
 
         # Get configuration from environment
         openai_api_key = env.OPENAI_API_KEY
