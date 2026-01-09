@@ -2,35 +2,61 @@
  * Cloudflare Workers entry point for DQX News API.
  */
 
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { createDb, type Database } from "@hiroba/db";
 import { D1Cache } from "./cache";
-import { createApp } from "./api";
 import { DQXNewsScraper } from "./scraper";
 import { DQXTranslator, computeContentHash } from "./translator";
 import { fetchGlossary } from "./glossary";
 import { NewsCategory, type Env } from "./types";
 
-export default {
-	/**
-	 * Handle HTTP fetch requests.
-	 */
-	async fetch(
-		request: Request,
-		env: Env,
-		_ctx: ExecutionContext
-	): Promise<Response> {
-		const cache = new D1Cache(env.DB);
-		const translator = new DQXTranslator(
-			env.OPENAI_API_KEY,
-			env.OPENAI_MODEL || "gpt-5.1"
-		);
+import newsRoutes from "./routes/news";
+import adminRoutes from "./routes/admin";
 
-		// Create Hono app and handle request
-		const app = createApp(cache, translator);
-		return app.fetch(request, env);
-	},
+type Bindings = Env & {
+	ADMIN_API_KEY: string;
+};
+
+type Variables = {
+	db: Database;
+};
+
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+// CORS for all routes
+app.use("*", cors());
+
+// Inject database into context
+app.use("*", async (c, next) => {
+	c.set("db", createDb(c.env.DB));
+	await next();
+});
+
+// Root endpoint
+app.get("/", (c) => {
+	return c.json({
+		service: "Hiroba News API",
+		version: "2.0.0",
+		endpoints: {
+			news_list: "/api/news",
+			news_detail: "/api/news/:id",
+			admin_scrape: "/api/admin/scrape",
+			admin_stats: "/api/admin/stats",
+		},
+	});
+});
+
+// Mount API routes
+app.route("/api/news", newsRoutes);
+app.route("/api/admin", adminRoutes);
+
+export default {
+	fetch: app.fetch,
 
 	/**
 	 * Handle scheduled cron jobs.
+	 * TODO: Refactor to use new list-scraper in Phase 5/6
 	 */
 	async scheduled(
 		controller: ScheduledController,
@@ -39,7 +65,6 @@ export default {
 	): Promise<void> {
 		const cache = new D1Cache(env.DB);
 
-		// Check which cron triggered (by schedule pattern)
 		// "0 15 * * *" = glossary refresh (daily at midnight JST)
 		// "0 * * * *" = news refresh (hourly)
 		const isGlossaryRefresh = controller.cron === "0 15 * * *";
@@ -51,9 +76,6 @@ export default {
 		}
 	},
 
-	/**
-	 * Refresh the glossary from GitHub.
-	 */
 	async refreshGlossary(cache: D1Cache): Promise<void> {
 		try {
 			const entries = await fetchGlossary();
@@ -64,9 +86,6 @@ export default {
 		}
 	},
 
-	/**
-	 * Refresh news listings from all categories.
-	 */
 	async refreshNews(cache: D1Cache, env: Env): Promise<void> {
 		const translator = new DQXTranslator(
 			env.OPENAI_API_KEY,
@@ -90,23 +109,19 @@ export default {
 
 				for (const item of items.slice(0, 50)) {
 					try {
-						// Check if already cached with same title
 						const cached = await cache.getTranslation(item.id);
 						if (cached && cached.title_ja === item.title) {
 							continue;
 						}
 
-						// Find matching glossary entries for the title
 						const glossaryEntries =
 							await cache.findMatchingGlossaryEntries(item.title);
 
-						// Translate title only for listing
 						const translated = await translator.translateNewsItem(
 							item,
 							glossaryEntries
 						);
 
-						// Save to cache (without full content)
 						const contentHash = await computeContentHash(item.title);
 						await cache.saveTranslation({
 							newsId: translated.id,
