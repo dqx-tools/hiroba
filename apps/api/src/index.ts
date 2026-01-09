@@ -41,6 +41,7 @@ app.get("/", (c) => {
 		endpoints: {
 			news_list: "/api/news",
 			news_detail: "/api/news/:id",
+			news_translated: "/api/news/:id/:lang",
 			admin_scrape: "/api/admin/scrape",
 			admin_stats: "/api/admin/stats",
 		},
