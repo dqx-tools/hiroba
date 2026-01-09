@@ -3,15 +3,16 @@
 	"name": "dqx-tools--news",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-11-21",
+	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
 		"enabled": true
 	},
 	// D1 Database binding for caching translations
 	"d1_databases": [
 		{
-			"binding": "DB",
-			"database_name": "dqx-news-cache",
-			"database_id": "52514b9a-0361-41c7-a645-2c8f75e855f1"
+			"binding": "NEWS_DB",
+			"database_name": "dqx-tools--news-db",
+			"migrations_dir": "src/db/migrations"
 		}
 	],
 	// Environment variables

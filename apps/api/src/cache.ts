@@ -2,7 +2,17 @@
  * Cloudflare D1 caching layer for translations.
  */
 
-import type { CachedTranslation, GlossaryEntry } from "./types";
+import { drizzle } from "drizzle-orm/d1";
+import { eq, desc, sql } from "drizzle-orm";
+import type { DrizzleD1Database } from "drizzle-orm/d1";
+import {
+	newsTranslations,
+	translationLocks,
+	glossary,
+	type NewsTranslation,
+} from "./db/schema";
+import type { CachedTranslation } from "./types";
+import type { GlossaryEntry as SchemaGlossaryEntry } from "./db/schema";
 
 /** How long to wait for an in-progress translation (ms) */
 const TRANSLATION_WAIT_TIMEOUT_MS = 60_000;
@@ -13,61 +23,14 @@ const TRANSLATION_POLL_INTERVAL_MS = 500;
 /** Max age for a stale translation lock before we consider it abandoned (ms) */
 const TRANSLATION_LOCK_TIMEOUT_MS = 120_000;
 
-const CREATE_TRANSLATIONS_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS news_translations (
-    news_id TEXT PRIMARY KEY,
-    content_hash TEXT NOT NULL,
-    title_ja TEXT NOT NULL,
-    title_en TEXT NOT NULL,
-    content_ja TEXT,
-    content_en TEXT,
-    category TEXT NOT NULL,
-    date TEXT NOT NULL,
-    url TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-`;
-
-const CREATE_LOCKS_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS translation_locks (
-    news_id TEXT PRIMARY KEY,
-    locked_at TEXT NOT NULL
-);
-`;
-
-const CREATE_GLOSSARY_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS glossary (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    japanese_text TEXT NOT NULL UNIQUE,
-    english_text TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-`;
-
-const CREATE_INDEX_SQLS = [
-	"CREATE INDEX IF NOT EXISTS idx_news_category ON news_translations(category)",
-	"CREATE INDEX IF NOT EXISTS idx_news_date ON news_translations(date DESC)",
-	"CREATE INDEX IF NOT EXISTS idx_news_updated ON news_translations(updated_at DESC)",
-	"CREATE INDEX IF NOT EXISTS idx_glossary_japanese ON glossary(japanese_text)",
-];
-
 /**
- * D1-based cache for DQX news translations.
+ * D1-based cache for DQX news translations using Drizzle ORM.
  */
 export class D1Cache {
-	constructor(private db: D1Database) {}
+	private db: DrizzleD1Database;
 
-	/**
-	 * Initialize the database schema.
-	 */
-	async initialize(): Promise<void> {
-		await this.db.prepare(CREATE_TRANSLATIONS_TABLE_SQL).run();
-		await this.db.prepare(CREATE_LOCKS_TABLE_SQL).run();
-		await this.db.prepare(CREATE_GLOSSARY_TABLE_SQL).run();
-		for (const sql of CREATE_INDEX_SQLS) {
-			await this.db.prepare(sql).run();
-		}
+	constructor(d1: D1Database) {
+		this.db = drizzle(d1);
 	}
 
 	/**
@@ -75,11 +38,27 @@ export class D1Cache {
 	 */
 	async getTranslation(newsId: string): Promise<CachedTranslation | null> {
 		const result = await this.db
-			.prepare("SELECT * FROM news_translations WHERE news_id = ?")
-			.bind(newsId)
-			.first<CachedTranslation>();
+			.select()
+			.from(newsTranslations)
+			.where(eq(newsTranslations.newsId, newsId))
+			.get();
 
-		return result ?? null;
+		if (!result) return null;
+
+		// Map Drizzle result to CachedTranslation format
+		return {
+			news_id: result.newsId,
+			content_hash: result.contentHash,
+			title_ja: result.titleJa,
+			title_en: result.titleEn,
+			content_ja: result.contentJa,
+			content_en: result.contentEn,
+			category: result.category,
+			date: result.date,
+			url: result.url,
+			created_at: result.createdAt,
+			updated_at: result.updatedAt,
+		};
 	}
 
 	/**
@@ -113,38 +92,34 @@ export class D1Cache {
 		const now = new Date().toISOString();
 
 		await this.db
-			.prepare(
-				`
-				INSERT INTO news_translations
-					(news_id, content_hash, title_ja, title_en, content_ja, content_en,
-					 category, date, url, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-				ON CONFLICT(news_id) DO UPDATE SET
-					content_hash = excluded.content_hash,
-					title_ja = excluded.title_ja,
-					title_en = excluded.title_en,
-					content_ja = excluded.content_ja,
-					content_en = excluded.content_en,
-					category = excluded.category,
-					date = excluded.date,
-					url = excluded.url,
-					updated_at = excluded.updated_at
-			`
-			)
-			.bind(
-				params.newsId,
-				params.contentHash,
-				params.titleJa,
-				params.titleEn,
-				params.contentJa ?? null,
-				params.contentEn ?? null,
-				params.category,
-				params.date,
-				params.url,
-				now,
-				now
-			)
-			.run();
+			.insert(newsTranslations)
+			.values({
+				newsId: params.newsId,
+				contentHash: params.contentHash,
+				titleJa: params.titleJa,
+				titleEn: params.titleEn,
+				contentJa: params.contentJa ?? null,
+				contentEn: params.contentEn ?? null,
+				category: params.category,
+				date: params.date,
+				url: params.url,
+				createdAt: now,
+				updatedAt: now,
+			})
+			.onConflictDoUpdate({
+				target: newsTranslations.newsId,
+				set: {
+					contentHash: params.contentHash,
+					titleJa: params.titleJa,
+					titleEn: params.titleEn,
+					contentJa: params.contentJa ?? null,
+					contentEn: params.contentEn ?? null,
+					category: params.category,
+					date: params.date,
+					url: params.url,
+					updatedAt: now,
+				},
+			});
 	}
 
 	/**
@@ -157,52 +132,50 @@ export class D1Cache {
 	}): Promise<CachedTranslation[]> {
 		const { category, limit = 50, offset = 0 } = params;
 
-		let stmt: D1PreparedStatement;
-		if (category) {
-			stmt = this.db
-				.prepare(
-					`
-					SELECT * FROM news_translations
-					WHERE category = ?
-					ORDER BY date DESC
-					LIMIT ? OFFSET ?
-				`
-				)
-				.bind(category, limit, offset);
-		} else {
-			stmt = this.db
-				.prepare(
-					`
-					SELECT * FROM news_translations
-					ORDER BY date DESC
-					LIMIT ? OFFSET ?
-				`
-				)
-				.bind(limit, offset);
-		}
+		const query = this.db
+			.select()
+			.from(newsTranslations)
+			.$dynamic();
 
-		const result = await stmt.all<CachedTranslation>();
-		return result.results ?? [];
+		const results = await (category
+			? query.where(eq(newsTranslations.category, category))
+			: query
+		)
+			.orderBy(desc(newsTranslations.date))
+			.limit(limit)
+			.offset(offset)
+			.all();
+
+		// Map results to CachedTranslation format
+		return results.map((result) => ({
+			news_id: result.newsId,
+			content_hash: result.contentHash,
+			title_ja: result.titleJa,
+			title_en: result.titleEn,
+			content_ja: result.contentJa,
+			content_en: result.contentEn,
+			category: result.category,
+			date: result.date,
+			url: result.url,
+			created_at: result.createdAt,
+			updated_at: result.updatedAt,
+		}));
 	}
 
 	/**
 	 * Get total count of cached items.
 	 */
 	async getCount(category?: string | null): Promise<number> {
-		let stmt: D1PreparedStatement;
-		if (category) {
-			stmt = this.db
-				.prepare(
-					"SELECT COUNT(*) as count FROM news_translations WHERE category = ?"
-				)
-				.bind(category);
-		} else {
-			stmt = this.db.prepare(
-				"SELECT COUNT(*) as count FROM news_translations"
-			);
-		}
+		const query = this.db
+			.select({ count: sql<number>`count(*)` })
+			.from(newsTranslations)
+			.$dynamic();
 
-		const result = await stmt.first<{ count: number }>();
+		const result = await (category
+			? query.where(eq(newsTranslations.category, category))
+			: query
+		).get();
+
 		return result?.count ?? 0;
 	}
 
@@ -228,14 +201,15 @@ export class D1Cache {
 	 */
 	async isTranslationLocked(newsId: string): Promise<boolean> {
 		const lock = await this.db
-			.prepare("SELECT locked_at FROM translation_locks WHERE news_id = ?")
-			.bind(newsId)
-			.first<{ locked_at: string }>();
+			.select()
+			.from(translationLocks)
+			.where(eq(translationLocks.newsId, newsId))
+			.get();
 
 		if (!lock) return false;
 
 		// Check if lock is stale
-		const lockedAt = new Date(lock.locked_at);
+		const lockedAt = new Date(lock.lockedAt);
 		const now = new Date();
 		if (now.getTime() - lockedAt.getTime() > TRANSLATION_LOCK_TIMEOUT_MS) {
 			// Stale lock - clean it up
@@ -252,23 +226,21 @@ export class D1Cache {
 	 */
 	async tryAcquireTranslationLock(newsId: string): Promise<boolean> {
 		const now = new Date().toISOString();
+		const staleThreshold = new Date(
+			Date.now() - TRANSLATION_LOCK_TIMEOUT_MS
+		).toISOString();
 
 		// Clean up any stale locks first
 		await this.db
-			.prepare(
-				"DELETE FROM translation_locks WHERE locked_at < ?"
-			)
-			.bind(new Date(Date.now() - TRANSLATION_LOCK_TIMEOUT_MS).toISOString())
-			.run();
+			.delete(translationLocks)
+			.where(sql`${translationLocks.lockedAt} < ${staleThreshold}`);
 
 		// Try to insert a lock - will fail if one exists
 		try {
-			await this.db
-				.prepare(
-					"INSERT INTO translation_locks (news_id, locked_at) VALUES (?, ?)"
-				)
-				.bind(newsId, now)
-				.run();
+			await this.db.insert(translationLocks).values({
+				newsId,
+				lockedAt: now,
+			});
 			return true;
 		} catch {
 			// Lock already exists
@@ -281,9 +253,8 @@ export class D1Cache {
 	 */
 	async releaseTranslationLock(newsId: string): Promise<void> {
 		await this.db
-			.prepare("DELETE FROM translation_locks WHERE news_id = ?")
-			.bind(newsId)
-			.run();
+			.delete(translationLocks)
+			.where(eq(translationLocks.newsId, newsId));
 	}
 
 	/**
@@ -323,11 +294,13 @@ export class D1Cache {
 	 * Update the glossary with new entries (full replacement).
 	 * Clears existing entries and inserts new ones.
 	 */
-	async updateGlossary(entries: GlossaryEntry[]): Promise<number> {
+	async updateGlossary(
+		entries: Array<{ japanese_text: string; english_text: string }>
+	): Promise<number> {
 		const now = new Date().toISOString();
 
 		// Clear existing glossary
-		await this.db.prepare("DELETE FROM glossary").run();
+		await this.db.delete(glossary);
 
 		// Insert in batches to avoid hitting query limits
 		const BATCH_SIZE = 100;
@@ -335,19 +308,14 @@ export class D1Cache {
 
 		for (let i = 0; i < entries.length; i += BATCH_SIZE) {
 			const batch = entries.slice(i, i + BATCH_SIZE);
-			const placeholders = batch.map(() => "(?, ?, ?)").join(", ");
-			const values = batch.flatMap((e) => [
-				e.japanese_text,
-				e.english_text,
-				now,
-			]);
 
-			await this.db
-				.prepare(
-					`INSERT OR REPLACE INTO glossary (japanese_text, english_text, updated_at) VALUES ${placeholders}`
-				)
-				.bind(...values)
-				.run();
+			await this.db.insert(glossary).values(
+				batch.map((e) => ({
+					japaneseText: e.japanese_text,
+					englishText: e.english_text,
+					updatedAt: now,
+				}))
+			);
 
 			inserted += batch.length;
 		}
@@ -359,16 +327,21 @@ export class D1Cache {
 	 * Find glossary entries that match substrings in the given text.
 	 * Returns entries where the Japanese text appears in the input.
 	 */
-	async findMatchingGlossaryEntries(text: string): Promise<GlossaryEntry[]> {
+	async findMatchingGlossaryEntries(
+		text: string
+	): Promise<Array<{ japanese_text: string; english_text: string }>> {
 		if (!text.trim()) return [];
 
 		// Get all glossary entries and filter in-memory for substring matching
 		// D1 doesn't support efficient substring search, so we fetch all and filter
-		const result = await this.db
-			.prepare("SELECT japanese_text, english_text FROM glossary")
-			.all<GlossaryEntry>();
+		const entries = await this.db
+			.select({
+				japanese_text: glossary.japaneseText,
+				english_text: glossary.englishText,
+			})
+			.from(glossary)
+			.all();
 
-		const entries = result.results ?? [];
 		return entries.filter((entry) => text.includes(entry.japanese_text));
 	}
 
@@ -377,8 +350,9 @@ export class D1Cache {
 	 */
 	async getGlossaryCount(): Promise<number> {
 		const result = await this.db
-			.prepare("SELECT COUNT(*) as count FROM glossary")
-			.first<{ count: number }>();
+			.select({ count: sql<number>`count(*)` })
+			.from(glossary)
+			.get();
 		return result?.count ?? 0;
 	}
 
@@ -388,13 +362,17 @@ export class D1Cache {
 	async getAllGlossaryEntries(
 		limit: number = 100,
 		offset: number = 0
-	): Promise<GlossaryEntry[]> {
-		const result = await this.db
-			.prepare(
-				"SELECT japanese_text, english_text, updated_at FROM glossary LIMIT ? OFFSET ?"
-			)
-			.bind(limit, offset)
-			.all<GlossaryEntry>();
-		return result.results ?? [];
+	): Promise<Array<{ japanese_text: string; english_text: string; updated_at: string }>> {
+		const entries = await this.db
+			.select({
+				japanese_text: glossary.japaneseText,
+				english_text: glossary.englishText,
+				updated_at: glossary.updatedAt,
+			})
+			.from(glossary)
+			.limit(limit)
+			.offset(offset)
+			.all();
+		return entries;
 	}
 }

@@ -1,0 +1,25 @@
+{
+	"name": "hiroba",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "turbo dev",
+		"build": "turbo build",
+		"deploy": "turbo deploy",
+		"typecheck": "turbo typecheck",
+		"test": "turbo test",
+		"lint": "turbo lint",
+		"db:generate": "pnpm --filter @hiroba/db drizzle-kit generate",
+		"db:migrate:local": "wrangler d1 migrations apply hiroba-db --local --config apps/api/wrangler.jsonc",
+		"db:migrate:prod": "wrangler d1 migrations apply hiroba-db --remote --config apps/api/wrangler.jsonc"
+	},
+	"devDependencies": {
+		"turbo": "^2.3.0",
+		"typescript": "^5.9.3",
+		"wrangler": "^4.54.0"
+	},
+	"packageManager": "pnpm@9.15.0",
+	"engines": {
+		"node": ">=20"
+	}
+}

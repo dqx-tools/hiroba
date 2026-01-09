@@ -24,9 +24,6 @@ export default {
 			env.OPENAI_MODEL || "gpt-5.1"
 		);
 
-		// Initialize cache schema
-		await cache.initialize();
-
 		// Create Hono app and handle request
 		const app = createApp(cache, translator);
 		return app.fetch(request, env);
@@ -41,9 +38,6 @@ export default {
 		_ctx: ExecutionContext
 	): Promise<void> {
 		const cache = new D1Cache(env.DB);
-
-		// Initialize cache schema if needed
-		await cache.initialize();
 
 		// Check which cron triggered (by schedule pattern)
 		// "0 15 * * *" = glossary refresh (daily at midnight JST)

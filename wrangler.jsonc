@@ -1,16 +1,14 @@
 {
-  // DQX Tools - Cloudflare Workers
-  //
-  // This project contains multiple workers. Deploy each from their respective directories:
-  //
-  // News API Worker:
-  //   cd workers/news && npx wrangler deploy
-  //
-  // Banner Translation Worker:
-  //   cd workers/banner && npx wrangler deploy
-  //
-  // See workers/*/wrangler.jsonc for individual worker configurations.
-  //
-  // This file is kept for documentation purposes only.
-  // Each worker has its own wrangler.jsonc in its directory.
+	// Hiroba - Cloudflare Workers Monorepo
+	//
+	// This project uses a monorepo structure with pnpm workspaces and Turborepo.
+	//
+	// API Worker:
+	//   pnpm --filter @hiroba/api dev     # Development
+	//   pnpm --filter @hiroba/api deploy  # Production
+	//
+	// See apps/api/wrangler.jsonc for the API worker configuration.
+	//
+	// This file is kept for documentation purposes only.
+	// Each app has its own wrangler.jsonc in its directory.
 }

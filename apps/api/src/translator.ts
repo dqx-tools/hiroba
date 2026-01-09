@@ -1,10 +1,6 @@
-/**
- * Translation service using OpenAI.
- */
-
 import OpenAI from "openai";
+
 import {
-	NewsCategory,
 	CATEGORY_ENGLISH_NAMES,
 	CATEGORY_JAPANESE_NAMES,
 	type NewsItem,
@@ -16,7 +12,7 @@ import {
 import { formatGlossaryForPrompt } from "./glossary";
 
 const TITLE_SYSTEM_PROMPT = `You are a professional translator specializing in Japanese video game content,
-particularly Dragon Quest X (DQX) online game. Translate the following Japanese text to natural English.
+particularly the Dragon Quest X (DQX) online game. Translate the following Japanese text to natural English.
 Keep game-specific terms, item names, and location names that players would recognize.
 Be concise but accurate.`;
 
@@ -47,10 +43,10 @@ export async function computeContentHash(content: string): Promise<string> {
  * Translator for DQX news using OpenAI.
  */
 export class DQXTranslator {
-	private client: OpenAI;
-	private model: string;
+	private readonly client: OpenAI;
+	private readonly model: string;
 
-	constructor(apiKey: string, model: string = "gpt-4.5-preview") {
+	constructor(apiKey: string, model: string = "gpt-5.1") {
 		this.client = new OpenAI({ apiKey });
 		this.model = model;
 	}

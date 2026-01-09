@@ -1,9 +1,6 @@
-/**
- * DQX News scraper for extracting news listings and content.
- */
-
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
+
 import {
 	NewsCategory,
 	CATEGORY_ENGLISH_NAMES,
