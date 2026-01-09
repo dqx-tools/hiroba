@@ -10,9 +10,9 @@ import {
 	translationLocks,
 	glossary,
 	type NewsTranslation,
-} from "./db/schema";
+	type GlossaryEntry as SchemaGlossaryEntry,
+} from "./legacy-schema";
 import type { CachedTranslation } from "./types";
-import type { GlossaryEntry as SchemaGlossaryEntry } from "./db/schema";
 
 /** How long to wait for an in-progress translation (ms) */
 const TRANSLATION_WAIT_TIMEOUT_MS = 60_000;

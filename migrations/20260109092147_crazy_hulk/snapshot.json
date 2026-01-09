@@ -1,0 +1,253 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "6f17dabb-17f1-4f0a-83e3-8c4653760a58",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "ddl": [
+    {
+      "name": "news_items",
+      "entityType": "tables"
+    },
+    {
+      "name": "translations",
+      "entityType": "tables"
+    },
+    {
+      "name": "glossary",
+      "entityType": "tables"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "news_items"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "title_ja",
+      "entityType": "columns",
+      "table": "news_items"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "category",
+      "entityType": "columns",
+      "table": "news_items"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "published_at",
+      "entityType": "columns",
+      "table": "news_items"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "list_checked_at",
+      "entityType": "columns",
+      "table": "news_items"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "content_ja",
+      "entityType": "columns",
+      "table": "news_items"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "source_updated_at",
+      "entityType": "columns",
+      "table": "news_items"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "body_fetched_at",
+      "entityType": "columns",
+      "table": "news_items"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "body_fetching_since",
+      "entityType": "columns",
+      "table": "news_items"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "item_type",
+      "entityType": "columns",
+      "table": "translations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "item_id",
+      "entityType": "columns",
+      "table": "translations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "language",
+      "entityType": "columns",
+      "table": "translations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "title",
+      "entityType": "columns",
+      "table": "translations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "content",
+      "entityType": "columns",
+      "table": "translations"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "translated_at",
+      "entityType": "columns",
+      "table": "translations"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "translating_since",
+      "entityType": "columns",
+      "table": "translations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "source_text",
+      "entityType": "columns",
+      "table": "glossary"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "target_language",
+      "entityType": "columns",
+      "table": "glossary"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "translated_text",
+      "entityType": "columns",
+      "table": "glossary"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "glossary"
+    },
+    {
+      "columns": [
+        "item_type",
+        "item_id",
+        "language"
+      ],
+      "nameExplicit": false,
+      "name": "translations_pk",
+      "entityType": "pks",
+      "table": "translations"
+    },
+    {
+      "columns": [
+        "source_text",
+        "target_language"
+      ],
+      "nameExplicit": false,
+      "name": "glossary_pk",
+      "entityType": "pks",
+      "table": "glossary"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "news_items_pk",
+      "table": "news_items",
+      "entityType": "pks"
+    }
+  ],
+  "renames": []
+}

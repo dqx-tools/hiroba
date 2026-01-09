@@ -1,11 +1,9 @@
 /**
  * Database schema exports.
  *
- * Schema tables will be added in Phase 2:
- * - news_items
- * - translations
- * - glossary
+ * All tables for the Hiroba news translation system.
  */
 
-// Placeholder export - will be replaced in Phase 2
-export const SCHEMA_VERSION = "0.0.1";
+export * from "./news-items";
+export * from "./translations";
+export * from "./glossary";

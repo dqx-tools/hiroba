@@ -9,7 +9,7 @@
 		"typecheck": "turbo typecheck",
 		"test": "turbo test",
 		"lint": "turbo lint",
-		"db:generate": "pnpm --filter @hiroba/db drizzle-kit generate",
+		"db:generate": "pnpm --filter @hiroba/db generate",
 		"db:migrate:local": "wrangler d1 migrations apply hiroba-db --local --config apps/api/wrangler.jsonc",
 		"db:migrate:prod": "wrangler d1 migrations apply hiroba-db --remote --config apps/api/wrangler.jsonc"
 	},

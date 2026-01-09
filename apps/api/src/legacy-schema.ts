@@ -1,16 +1,18 @@
 /**
- * Drizzle ORM schema for DQX News D1 database.
+ * LEGACY SCHEMA - DO NOT USE FOR NEW CODE
+ *
+ * This file maintains backward compatibility with the existing API code.
+ * It will be removed when the API is refactored in Phase 4-5 to use
+ * the new schema from @hiroba/db.
+ *
+ * New code should use: import { ... } from "@hiroba/db"
  */
 
 import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 
-
-export const newsItems = sqliteTable("news_items", {
-	newsId: text("news_id").primaryKey(),
-});
 /**
- * News translations table - stores translated news items.
+ * @deprecated Use newsItems from @hiroba/db instead
  */
 export const newsTranslations = sqliteTable(
 	"news_translations",
@@ -35,11 +37,11 @@ export const newsTranslations = sqliteTable(
 		categoryIdx: index("idx_news_category").on(table.category),
 		dateIdx: index("idx_news_date").on(table.date),
 		updatedIdx: index("idx_news_updated").on(table.updatedAt),
-	})
+	}),
 );
 
 /**
- * Translation locks table - prevents duplicate API calls for the same news item.
+ * @deprecated Locking is now handled via translatingSince column in translations table
  */
 export const translationLocks = sqliteTable("translation_locks", {
 	newsId: text("news_id").primaryKey(),
@@ -47,7 +49,7 @@ export const translationLocks = sqliteTable("translation_locks", {
 });
 
 /**
- * Glossary table - stores translation glossary entries.
+ * @deprecated Use glossary from @hiroba/db instead
  */
 export const glossary = sqliteTable(
 	"glossary",
@@ -59,7 +61,7 @@ export const glossary = sqliteTable(
 	},
 	(table) => ({
 		japaneseIdx: index("idx_glossary_japanese").on(table.japaneseText),
-	})
+	}),
 );
 
 export type NewsTranslation = typeof newsTranslations.$inferSelect;
