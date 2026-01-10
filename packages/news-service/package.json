@@ -1,0 +1,24 @@
+{
+	"name": "@hiroba/news-service",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"build": "tsc --noEmit",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@hiroba/db": "workspace:*",
+		"@hiroba/shared": "workspace:*",
+		"cheerio": "^1.1.2",
+		"drizzle-orm": "1.0.0-beta.6-cd45bda",
+		"openai": "^4.104.0"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "^4.20250507.0",
+		"typescript": "^5.9.3"
+	}
+}

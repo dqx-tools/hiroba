@@ -1,0 +1,21 @@
+{
+	"name": "@hiroba/scraper",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"build": "tsc --noEmit",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@hiroba/shared": "workspace:*",
+		"cheerio": "^1.1.2",
+		"domhandler": "^5.0.3"
+	},
+	"devDependencies": {
+		"typescript": "^5.9.3"
+	}
+}
