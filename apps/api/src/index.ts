@@ -5,16 +5,19 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createDb, type Database } from "@hiroba/db";
+import { CATEGORIES, type Category } from "@hiroba/shared";
 import { D1Cache } from "./cache";
-import { DQXNewsScraper } from "./scraper";
-import { DQXTranslator, computeContentHash } from "./translator";
 import { fetchGlossary } from "./glossary";
-import { NewsCategory, type Env } from "./types";
+import { scrapeNewsList } from "./lib/list-scraper";
+import { upsertListItems } from "./lib/news-repository";
 
 import newsRoutes from "./routes/news";
 import adminRoutes from "./routes/admin";
 
-type Bindings = Env & {
+type Bindings = {
+	DB: D1Database;
+	OPENAI_API_KEY: string;
+	OPENAI_MODEL?: string;
 	ADMIN_API_KEY: string;
 };
 
@@ -57,14 +60,14 @@ export default {
 
 	/**
 	 * Handle scheduled cron jobs.
-	 * TODO: Refactor to use new list-scraper in Phase 5/6
 	 */
 	async scheduled(
 		controller: ScheduledController,
-		env: Env,
-		_ctx: ExecutionContext
+		env: Bindings,
+		_ctx: ExecutionContext,
 	): Promise<void> {
 		const cache = new D1Cache(env.DB);
+		const db = createDb(env.DB);
 
 		// "0 15 * * *" = glossary refresh (daily at midnight JST)
 		// "0 * * * *" = news refresh (hourly)
@@ -73,7 +76,7 @@ export default {
 		if (isGlossaryRefresh) {
 			await this.refreshGlossary(cache);
 		} else {
-			await this.refreshNews(cache, env);
+			await this.refreshNews(db);
 		}
 	},
 
@@ -87,64 +90,27 @@ export default {
 		}
 	},
 
-	async refreshNews(cache: D1Cache, env: Env): Promise<void> {
-		const translator = new DQXTranslator(
-			env.OPENAI_API_KEY,
-			env.OPENAI_MODEL || "gpt-4.5-preview"
-		);
-
-		let refreshed = 0;
+	async refreshNews(db: Database): Promise<void> {
+		let totalNew = 0;
 		let errors = 0;
 
-		const scraper = new DQXNewsScraper();
-		const categories = [
-			NewsCategory.NEWS,
-			NewsCategory.EVENTS,
-			NewsCategory.UPDATES,
-			NewsCategory.MAINTENANCE,
-		];
-
-		for (const category of categories) {
+		for (const category of CATEGORIES) {
 			try {
-				const { items } = await scraper.getNewsListing(category, 1);
-
-				for (const item of items.slice(0, 50)) {
-					try {
-						const cached = await cache.getTranslation(item.id);
-						if (cached && cached.title_ja === item.title) {
-							continue;
-						}
-
-						const glossaryEntries =
-							await cache.findMatchingGlossaryEntries(item.title);
-
-						const translated = await translator.translateNewsItem(
-							item,
-							glossaryEntries
-						);
-
-						const contentHash = await computeContentHash(item.title);
-						await cache.saveTranslation({
-							newsId: translated.id,
-							contentHash,
-							titleJa: translated.titleJa,
-							titleEn: translated.titleEn,
-							category: translated.category,
-							date: translated.date,
-							url: translated.url,
-						});
-						refreshed++;
-					} catch {
-						errors++;
-					}
+				// Scrape first page only for scheduled refresh
+				for await (const items of scrapeNewsList(category)) {
+					const inserted = await upsertListItems(db, items);
+					totalNew += inserted.length;
+					// Only scrape first page in scheduled job
+					break;
 				}
-			} catch {
+			} catch (error) {
+				console.error(`Failed to scrape ${category}:`, error);
 				errors++;
 			}
 		}
 
 		console.log(
-			`Scheduled refresh complete: ${refreshed} items refreshed, ${errors} errors`
+			`Scheduled refresh complete: ${totalNew} new items, ${errors} errors`,
 		);
 	},
 };

@@ -19,23 +19,18 @@ const BASE_URL = SCRAPE_CONFIG.baseUrl;
 /**
  * Map Category strings to numeric IDs used in the website URLs.
  */
-const CATEGORY_TO_ID: Record<Category, number> = {
+export const CATEGORY_TO_ID: Record<Category, number> = {
 	news: 0,
 	event: 1,
 	update: 2,
 	maintenance: 3,
 };
 
-export interface ScrapeOptions {
-	/** If true, scrape all pages. If false, caller can break early. */
-	fullScrape?: boolean;
-}
-
 /**
  * Parse a date string as JST and return Unix timestamp in seconds.
  * Input formats: "2024/01/15", "2024-01-15", "2024/01/15 10:30"
  */
-function parseJstDateToUnix(dateStr: string): number {
+export function parseJstDateToUnix(dateStr: string): number {
 	if (!dateStr) return Math.floor(Date.now() / 1000);
 
 	// Normalize separators
@@ -122,7 +117,7 @@ function extractTotalPages($: cheerio.CheerioAPI): number {
 /**
  * Parse a list page HTML and extract news items.
  */
-function parseListPage(html: string, category: Category): ListItem[] {
+export function parseListPage(html: string, category: Category): ListItem[] {
 	const $ = cheerio.load(html);
 	const items: ListItem[] = [];
 	const seenIds = new Set<string>();
@@ -197,7 +192,6 @@ async function fetchListPage(
  */
 export async function* scrapeNewsList(
 	category: Category,
-	_options: ScrapeOptions = {},
 ): AsyncGenerator<ListItem[], void, unknown> {
 	let page = 1;
 	let totalPages = 1;
@@ -221,7 +215,7 @@ export async function* scrapeNewsList(
 export async function scrapeCategory(category: Category): Promise<ListItem[]> {
 	const allItems: ListItem[] = [];
 
-	for await (const items of scrapeNewsList(category, { fullScrape: true })) {
+	for await (const items of scrapeNewsList(category)) {
 		allItems.push(...items);
 	}
 

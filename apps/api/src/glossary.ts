@@ -7,7 +7,11 @@ import { parse } from "csv-parse";
 import { Readable } from "node:stream";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 
-import type { GlossaryEntry } from "./types";
+/** Glossary entry for translation. */
+interface GlossaryEntry {
+	japanese_text: string;
+	english_text: string;
+}
 
 const GLOSSARY_URL =
 	"https://raw.githubusercontent.com/dqx-translation-project/dqx-custom-translations/main/csv/glossary.csv";

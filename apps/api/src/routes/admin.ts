@@ -59,7 +59,7 @@ app.post("/scrape", async (c) => {
 		let newItems = 0;
 		let totalScraped = 0;
 
-		for await (const items of scrapeNewsList(category, { fullScrape })) {
+		for await (const items of scrapeNewsList(category)) {
 			totalScraped += items.length;
 			const inserted = await upsertListItems(db, items);
 			newItems += inserted.length;

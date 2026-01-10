@@ -9,10 +9,22 @@ import {
 	newsTranslations,
 	translationLocks,
 	glossary,
-	type NewsTranslation,
-	type GlossaryEntry as SchemaGlossaryEntry,
 } from "./legacy-schema";
-import type { CachedTranslation } from "./types";
+
+/** Cached translation record from the database. */
+export interface CachedTranslation {
+	news_id: string;
+	content_hash: string;
+	title_ja: string;
+	title_en: string | null;
+	content_ja: string | null;
+	content_en: string | null;
+	category: string;
+	date: string;
+	url: string;
+	created_at: string;
+	updated_at: string;
+}
 
 /** How long to wait for an in-progress translation (ms) */
 const TRANSLATION_WAIT_TIMEOUT_MS = 60_000;
