@@ -3,5 +3,12 @@
 	"name": "hiroba-admin",
 	"pages_build_output_dir": "./dist",
 	"compatibility_date": "2025-01-01",
-	"compatibility_flags": ["nodejs_compat"]
+	"compatibility_flags": ["nodejs_compat"],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "dqx-tools--news-db",
+			"database_id": "local"
+		}
+	]
 }

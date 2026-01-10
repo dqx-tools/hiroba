@@ -3,7 +3,7 @@ import cloudflare from "@astrojs/cloudflare";
 import react from "@astrojs/react";
 
 export default defineConfig({
-	output: "static",
+	output: "server",
 	adapter: cloudflare({
 		platformProxy: { enabled: true },
 	}),

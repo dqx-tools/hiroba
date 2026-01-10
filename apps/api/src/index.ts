@@ -4,21 +4,20 @@
 
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { sql } from "drizzle-orm";
 import { createDb, glossary, type Database } from "@hiroba/db";
 import { CATEGORIES } from "@hiroba/shared";
-import { fetchGlossary } from "./glossary";
+import { fetchGlossary } from "./lib/glossary-fetcher";
 import { scrapeNewsList } from "./lib/list-scraper";
 import { upsertListItems } from "./lib/news-repository";
 import { publishUpdate } from "./lib/pubsub";
 
 import newsRoutes from "./routes/news";
-import adminRoutes from "./routes/admin";
 
 type Bindings = {
 	DB: D1Database;
 	OPENAI_API_KEY: string;
 	OPENAI_MODEL?: string;
-	ADMIN_API_KEY: string;
 };
 
 type Variables = {
@@ -45,21 +44,12 @@ app.get("/", (c) => {
 			news_list: "/api/news",
 			news_detail: "/api/news/:id",
 			news_translated: "/api/news/:id/:lang",
-			admin_scrape: "POST /api/admin/scrape",
-			admin_stats: "GET /api/admin/stats",
-			admin_recheck_queue: "GET /api/admin/recheck-queue",
-			admin_invalidate_body: "DELETE /api/admin/news/:id/body",
-			admin_delete_translation: "DELETE /api/admin/news/:id/:lang",
-			admin_glossary: "GET /api/admin/glossary",
-			admin_glossary_import: "POST /api/admin/glossary/import",
-			admin_glossary_delete: "DELETE /api/admin/glossary/:sourceText/:lang",
 		},
 	});
 });
 
 // Mount API routes
 app.route("/api/news", newsRoutes);
-app.route("/api/admin", adminRoutes);
 
 export default {
 	fetch: app.fetch,
@@ -94,20 +84,29 @@ export default {
 			await db.delete(glossary);
 
 			// Insert in batches
-			const BATCH_SIZE = 100;
+			const BATCH_SIZE = 25;
 			let inserted = 0;
 
 			for (let i = 0; i < entries.length; i += BATCH_SIZE) {
 				const batch = entries.slice(i, i + BATCH_SIZE);
 
-				await db.insert(glossary).values(
-					batch.map((e) => ({
-						sourceText: e.japanese_text,
-						targetLanguage: "en",
-						translatedText: e.english_text,
-						updatedAt: now,
-					})),
-				);
+				await db
+					.insert(glossary)
+					.values(
+						batch.map((e) => ({
+							sourceText: e.japanese_text,
+							targetLanguage: "en",
+							translatedText: e.english_text,
+							updatedAt: now,
+						})),
+					)
+					.onConflictDoUpdate({
+						target: [glossary.sourceText, glossary.targetLanguage],
+						set: {
+							translatedText: sql`excluded.translated_text`,
+							updatedAt: sql`excluded.updated_at`,
+						},
+					});
 
 				inserted += batch.length;
 			}

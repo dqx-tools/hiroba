@@ -18,7 +18,7 @@ export default function Dashboard() {
 			const data = await getStats();
 			setStats(data);
 		} catch (err) {
-			setError("Failed to load stats. Check API key.");
+			setError("Failed to load stats.");
 			console.error(err);
 		}
 		setLoading(false);
@@ -45,19 +45,7 @@ export default function Dashboard() {
 		return (
 			<div className="error-state">
 				<p>{error}</p>
-				<div className="api-key-form">
-					<label>
-						API Key:
-						<input
-							type="password"
-							onChange={(e) => {
-								localStorage.setItem("admin_api_key", e.target.value);
-							}}
-							placeholder="Enter admin API key"
-						/>
-					</label>
-					<button onClick={loadStats}>Retry</button>
-				</div>
+				<button onClick={loadStats}>Retry</button>
 			</div>
 		);
 	}

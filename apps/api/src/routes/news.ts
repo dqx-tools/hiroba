@@ -37,7 +37,7 @@ app.get("/", async (c) => {
 	const limitParam = c.req.query("limit");
 	const cursor = c.req.query("cursor");
 
-	const limit = limitParam ? parseInt(limitParam, 10) : 20;
+	const limit = Math.min(limitParam ? parseInt(limitParam, 10) : 20, 100);
 
 	// Validate category if provided
 	const validCategories = ["news", "event", "update", "maintenance"];

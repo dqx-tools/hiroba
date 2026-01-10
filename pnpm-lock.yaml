@@ -26,12 +26,21 @@ importers:
       '@astrojs/react':
         specifier: ^4.2.0
         version: 4.4.2(@types/node@24.10.4)(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(tsx@4.21.0)(yaml@2.8.2)
+      '@hiroba/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@hiroba/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       astro:
         specifier: ^5.1.0
         version: 5.16.8(@azure/identity@4.13.0)(@types/node@24.10.4)(rollup@4.55.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+      cheerio:
+        specifier: ^1.0.0
+        version: 1.1.2
+      drizzle-orm:
+        specifier: ^0.38.3
+        version: 0.38.4(@cloudflare/workers-types@4.20260109.0)(@opentelemetry/api@1.9.0)(@types/react@19.2.7)(react@19.2.3)
       react:
         specifier: ^19.0.0
         version: 19.2.3
@@ -2733,6 +2742,98 @@ packages:
   drizzle-kit@1.0.0-beta.6-cd45bda:
     resolution: {integrity: sha512-8Rr/hgJ6Ud5HQW7sDdyJ/EaQTXN9gZUAFix9XlMLApv601ao2IN+hb/a6vRdHVwiR/gV2sD6a7XHsUoPbUQ86w==}
     hasBin: true
+
+  drizzle-orm@0.38.4:
+    resolution: {integrity: sha512-s7/5BpLKO+WJRHspvpqTydxFob8i1vo2rEx4pY6TGY7QSMuUfWUuzaY0DIpXCkgHOo37BaFC+SJQb99dDUXT3Q==}
+    peerDependencies:
+      '@aws-sdk/client-rds-data': '>=3'
+      '@cloudflare/workers-types': '>=4'
+      '@electric-sql/pglite': '>=0.2.0'
+      '@libsql/client': '>=0.10.0'
+      '@libsql/client-wasm': '>=0.10.0'
+      '@neondatabase/serverless': '>=0.10.0'
+      '@op-engineering/op-sqlite': '>=2'
+      '@opentelemetry/api': ^1.4.1
+      '@planetscale/database': '>=1'
+      '@prisma/client': '*'
+      '@tidbcloud/serverless': '*'
+      '@types/better-sqlite3': '*'
+      '@types/pg': '*'
+      '@types/react': '>=18'
+      '@types/sql.js': '*'
+      '@vercel/postgres': '>=0.8.0'
+      '@xata.io/client': '*'
+      better-sqlite3: '>=7'
+      bun-types: '*'
+      expo-sqlite: '>=14.0.0'
+      knex: '*'
+      kysely: '*'
+      mysql2: '>=2'
+      pg: '>=8'
+      postgres: '>=3'
+      prisma: '*'
+      react: '>=18'
+      sql.js: '>=1'
+      sqlite3: '>=5'
+    peerDependenciesMeta:
+      '@aws-sdk/client-rds-data':
+        optional: true
+      '@cloudflare/workers-types':
+        optional: true
+      '@electric-sql/pglite':
+        optional: true
+      '@libsql/client':
+        optional: true
+      '@libsql/client-wasm':
+        optional: true
+      '@neondatabase/serverless':
+        optional: true
+      '@op-engineering/op-sqlite':
+        optional: true
+      '@opentelemetry/api':
+        optional: true
+      '@planetscale/database':
+        optional: true
+      '@prisma/client':
+        optional: true
+      '@tidbcloud/serverless':
+        optional: true
+      '@types/better-sqlite3':
+        optional: true
+      '@types/pg':
+        optional: true
+      '@types/react':
+        optional: true
+      '@types/sql.js':
+        optional: true
+      '@vercel/postgres':
+        optional: true
+      '@xata.io/client':
+        optional: true
+      better-sqlite3:
+        optional: true
+      bun-types:
+        optional: true
+      expo-sqlite:
+        optional: true
+      knex:
+        optional: true
+      kysely:
+        optional: true
+      mysql2:
+        optional: true
+      pg:
+        optional: true
+      postgres:
+        optional: true
+      prisma:
+        optional: true
+      react:
+        optional: true
+      sql.js:
+        optional: true
+      sqlite3:
+        optional: true
 
   drizzle-orm@1.0.0-beta.6-cd45bda:
     resolution: {integrity: sha512-ZcKi/G1jRU9nE0Zhu+oaZZK1/xKhUMuHJyu9d44UfT07myFdiZEz4TvqFPiQbn5dov3W/lylTkkg+ZQ3PwbTuw==}
@@ -7116,6 +7217,13 @@ snapshots:
       '@js-temporal/polyfill': 0.5.1
       esbuild: 0.25.12
       tsx: 4.21.0
+
+  drizzle-orm@0.38.4(@cloudflare/workers-types@4.20260109.0)(@opentelemetry/api@1.9.0)(@types/react@19.2.7)(react@19.2.3):
+    optionalDependencies:
+      '@cloudflare/workers-types': 4.20260109.0
+      '@opentelemetry/api': 1.9.0
+      '@types/react': 19.2.7
+      react: 19.2.3
 
   drizzle-orm@1.0.0-beta.6-cd45bda(@cloudflare/workers-types@4.20260109.0)(@opentelemetry/api@1.9.0)(@types/mssql@9.1.8)(mssql@11.0.1):
     dependencies:

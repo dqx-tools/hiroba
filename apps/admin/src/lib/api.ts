@@ -1,26 +1,10 @@
 /**
- * Admin API client for interacting with the Hiroba API.
+ * Admin API client for interacting with the local admin API.
+ * No authentication needed - protected by Cloudflare Access at edge.
  */
 
-const API_URL = import.meta.env.PUBLIC_API_URL || "http://localhost:8787";
-
-function getApiKey(): string {
-	// In production, this would come from Cloudflare Access headers
-	// or be injected at build time
-	if (typeof localStorage !== "undefined") {
-		return localStorage.getItem("admin_api_key") || "";
-	}
-	return "";
-}
-
 async function adminFetch(path: string, options: RequestInit = {}) {
-	const res = await fetch(`${API_URL}${path}`, {
-		...options,
-		headers: {
-			...options.headers,
-			Authorization: `Bearer ${getApiKey()}`,
-		},
-	});
+	const res = await fetch(path, options);
 
 	if (!res.ok) {
 		throw new Error(`API error: ${res.status}`);
@@ -38,7 +22,7 @@ export interface Stats {
 }
 
 export async function getStats(): Promise<Stats> {
-	return adminFetch("/api/admin/stats");
+	return adminFetch("/api/stats");
 }
 
 export interface QueueItem {
@@ -53,7 +37,7 @@ export interface QueueItem {
 export async function getRecheckQueue(
 	limit = 50,
 ): Promise<{ items: QueueItem[] }> {
-	return adminFetch(`/api/admin/recheck-queue?limit=${limit}`);
+	return adminFetch(`/api/recheck-queue?limit=${limit}`);
 }
 
 export interface ScrapeResult {
@@ -64,7 +48,7 @@ export interface ScrapeResult {
 }
 
 export async function triggerScrape(full = false): Promise<ScrapeResult> {
-	return adminFetch(`/api/admin/scrape?full=${full}`, { method: "POST" });
+	return adminFetch(`/api/scrape?full=${full}`, { method: "POST" });
 }
 
 export interface NewsItem {
@@ -75,6 +59,8 @@ export interface NewsItem {
 	contentJa: string | null;
 }
 
+const PUBLIC_API_URL = import.meta.env.PUBLIC_API_URL || "http://localhost:8787";
+
 export async function getNewsList(options?: {
 	category?: string;
 	limit?: number;
@@ -82,21 +68,21 @@ export async function getNewsList(options?: {
 	const params = new URLSearchParams();
 	if (options?.category) params.set("category", options.category);
 	if (options?.limit) params.set("limit", String(options.limit));
-	const url = `${API_URL}/api/news${params.toString() ? `?${params}` : ""}`;
+	const url = `${PUBLIC_API_URL}/api/news${params.toString() ? `?${params}` : ""}`;
 	const res = await fetch(url);
 	if (!res.ok) throw new Error(`API error: ${res.status}`);
 	return res.json();
 }
 
 export async function invalidateBody(id: string): Promise<{ success: boolean }> {
-	return adminFetch(`/api/admin/news/${id}/body`, { method: "DELETE" });
+	return adminFetch(`/api/news/${id}/body`, { method: "DELETE" });
 }
 
 export async function deleteTranslation(
 	id: string,
 	lang: string,
 ): Promise<{ success: boolean }> {
-	return adminFetch(`/api/admin/news/${id}/${lang}`, { method: "DELETE" });
+	return adminFetch(`/api/news/${id}/${lang}`, { method: "DELETE" });
 }
 
 export interface GlossaryEntry {
@@ -110,7 +96,7 @@ export async function getGlossary(
 	lang?: string,
 ): Promise<{ entries: GlossaryEntry[] }> {
 	const params = lang ? `?lang=${lang}` : "";
-	return adminFetch(`/api/admin/glossary${params}`);
+	return adminFetch(`/api/glossary${params}`);
 }
 
 export async function importGlossary(
@@ -121,11 +107,8 @@ export async function importGlossary(
 	formData.append("file", file);
 	formData.append("targetLanguage", targetLanguage);
 
-	const res = await fetch(`${API_URL}/api/admin/glossary/import`, {
+	const res = await fetch("/api/glossary/import", {
 		method: "POST",
-		headers: {
-			Authorization: `Bearer ${getApiKey()}`,
-		},
 		body: formData,
 	});
 
@@ -133,12 +116,20 @@ export async function importGlossary(
 	return res.json();
 }
 
+export async function importGlossaryFromGitHub(): Promise<{
+	success: boolean;
+	imported: number;
+	source: string;
+}> {
+	return adminFetch("/api/glossary/import-github", { method: "POST" });
+}
+
 export async function deleteGlossaryEntry(
 	sourceText: string,
 	lang: string,
 ): Promise<{ success: boolean }> {
 	return adminFetch(
-		`/api/admin/glossary/${encodeURIComponent(sourceText)}/${lang}`,
+		`/api/glossary/${encodeURIComponent(sourceText)}/${lang}`,
 		{ method: "DELETE" },
 	);
 }
