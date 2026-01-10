@@ -1,12 +1,16 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { getNewsList } from "../lib/api";
+import { createDb } from "@hiroba/db";
+import { getNewsItems } from "@hiroba/news-service";
 import { CATEGORIES, CATEGORY_LABELS, type Category } from "@hiroba/shared";
+
+const runtime = Astro.locals.runtime;
+const db = createDb(runtime.env.DB);
 
 const newsByCategory = await Promise.all(
 	CATEGORIES.map(async (category) => {
 		try {
-			const { items } = await getNewsList({ category, limit: 5 });
+			const { items } = await getNewsItems(db, { category, limit: 5 });
 			return { category, items };
 		} catch {
 			return { category, items: [] };

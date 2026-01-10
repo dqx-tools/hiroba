@@ -1,7 +1,8 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { getNewsList } from "../../lib/api";
-import { CATEGORIES, CATEGORY_LABELS, type Category } from "@hiroba/shared";
+import { createDb } from "@hiroba/db";
+import { getNewsItems } from "@hiroba/news-service";
+import { CATEGORIES, CATEGORY_LABELS, type Category, type NewsItem } from "@hiroba/shared";
 
 const { slug } = Astro.params;
 
@@ -12,12 +13,15 @@ if (!slug || !CATEGORIES.includes(slug as Category)) {
 const category = slug as Category;
 const cursor = Astro.url.searchParams.get("cursor") ?? undefined;
 
-let items: Awaited<ReturnType<typeof getNewsList>>["items"] = [];
+const runtime = Astro.locals.runtime;
+const db = createDb(runtime.env.DB);
+
+let items: NewsItem[] = [];
 let hasMore = false;
 let nextCursor: string | undefined;
 
 try {
-	const result = await getNewsList({
+	const result = await getNewsItems(db, {
 		category,
 		limit: 20,
 		cursor,
