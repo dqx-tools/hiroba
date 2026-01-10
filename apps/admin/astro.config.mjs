@@ -5,7 +5,10 @@ import react from "@astrojs/react";
 export default defineConfig({
 	output: "server",
 	adapter: cloudflare({
-		platformProxy: { enabled: true },
+		platformProxy: {
+			enabled: true,
+			persist: { path: "../../.wrangler-shared/v3" },
+		},
 	}),
 	integrations: [react()],
 });
