@@ -1,194 +1,24 @@
 /**
  * Database operations for admin API routes.
- * These mirror the repository functions from the main API.
+ *
+ * Re-exports shared functions from @hiroba/news-service and provides
+ * admin-specific functions for scraping and glossary management.
  */
 
-import { eq, desc, and, sql, isNotNull } from "drizzle-orm";
-import { newsItems, translations, glossary, type Database } from "@hiroba/db";
-import { isDueForCheck, getNextCheckTime, type Category, CATEGORIES } from "@hiroba/shared";
-import { scrapeNewsList } from "./scraper";
+import { eq, and, sql } from "drizzle-orm";
+import { glossary, type Database } from "@hiroba/db";
+import { type Category, CATEGORIES } from "@hiroba/shared";
+import { scrapeNewsList } from "@hiroba/scraper";
+import { upsertListItems } from "@hiroba/news-service";
 
-/**
- * Get stats for admin dashboard.
- */
-export async function getStats(db: Database): Promise<{
-	totalItems: number;
-	itemsWithBody: number;
-	itemsTranslated: number;
-	itemsPendingRecheck: number;
-	byCategory: Record<string, number>;
-}> {
-	const [totalResult, withBodyResult, translatedResult, categoryResults] =
-		await Promise.all([
-			db.select({ count: sql<number>`count(*)` }).from(newsItems).get(),
-			db
-				.select({ count: sql<number>`count(*)` })
-				.from(newsItems)
-				.where(isNotNull(newsItems.contentJa))
-				.get(),
-			db
-				.select({ count: sql<number>`count(DISTINCT item_id)` })
-				.from(translations)
-				.where(
-					and(eq(translations.itemType, "news"), eq(translations.language, "en")),
-				)
-				.get(),
-			db
-				.select({
-					category: newsItems.category,
-					count: sql<number>`count(*)`,
-				})
-				.from(newsItems)
-				.groupBy(newsItems.category)
-				.all(),
-		]);
-
-	const itemsWithFetchedBody = await db
-		.select({
-			publishedAt: newsItems.publishedAt,
-			bodyFetchedAt: newsItems.bodyFetchedAt,
-		})
-		.from(newsItems)
-		.where(isNotNull(newsItems.bodyFetchedAt))
-		.all();
-
-	const itemsPendingRecheck = itemsWithFetchedBody.filter((item) =>
-		isDueForCheck(item.publishedAt, item.bodyFetchedAt),
-	).length;
-
-	const byCategory: Record<string, number> = {};
-	for (const row of categoryResults) {
-		byCategory[row.category] = row.count;
-	}
-
-	return {
-		totalItems: totalResult?.count ?? 0,
-		itemsWithBody: withBodyResult?.count ?? 0,
-		itemsTranslated: translatedResult?.count ?? 0,
-		itemsPendingRecheck,
-		byCategory,
-	};
-}
-
-/**
- * Get items due for body recheck, sorted by next check time.
- */
-export async function getRecheckQueue(
-	db: Database,
-	limit: number = 50,
-): Promise<
-	Array<{
-		id: string;
-		titleJa: string;
-		category: string;
-		publishedAt: number;
-		bodyFetchedAt: number;
-		nextCheckAt: number;
-	}>
-> {
-	const items = await db
-		.select()
-		.from(newsItems)
-		.where(isNotNull(newsItems.bodyFetchedAt))
-		.all();
-
-	return items
-		.map((item) => ({
-			id: item.id,
-			titleJa: item.titleJa,
-			category: item.category,
-			publishedAt: item.publishedAt,
-			bodyFetchedAt: item.bodyFetchedAt!,
-			nextCheckAt: getNextCheckTime(item.publishedAt, item.bodyFetchedAt!),
-		}))
-		.filter((item) => item.nextCheckAt <= Date.now())
-		.sort((a, b) => a.nextCheckAt - b.nextCheckAt)
-		.slice(0, limit);
-}
-
-/**
- * Invalidate cached body content for a news item.
- */
-export async function invalidateBody(
-	db: Database,
-	id: string,
-): Promise<boolean> {
-	const result = await db
-		.update(newsItems)
-		.set({
-			contentJa: null,
-			sourceUpdatedAt: null,
-			bodyFetchedAt: null,
-			bodyFetchingSince: null,
-		})
-		.where(eq(newsItems.id, id))
-		.returning({ id: newsItems.id });
-
-	return result.length > 0;
-}
-
-/**
- * Delete a translation for a news item.
- */
-export async function deleteTranslation(
-	db: Database,
-	itemId: string,
-	language: string,
-): Promise<boolean> {
-	const result = await db
-		.delete(translations)
-		.where(
-			and(
-				eq(translations.itemType, "news"),
-				eq(translations.itemId, itemId),
-				eq(translations.language, language),
-			),
-		)
-		.returning({ itemId: translations.itemId });
-
-	return result.length > 0;
-}
-
-/**
- * Upsert news items from list scraping.
- */
-export async function upsertListItems(
-	db: Database,
-	items: Array<{ id: string; titleJa: string; category: string; publishedAt: number }>,
-): Promise<Array<{ id: string }>> {
-	const now = Math.floor(Date.now() / 1000);
-	const newlyInserted: Array<{ id: string }> = [];
-
-	for (const item of items) {
-		const existing = await db
-			.select({ id: newsItems.id })
-			.from(newsItems)
-			.where(eq(newsItems.id, item.id))
-			.get();
-
-		await db
-			.insert(newsItems)
-			.values({
-				id: item.id,
-				titleJa: item.titleJa,
-				category: item.category,
-				publishedAt: item.publishedAt,
-				listCheckedAt: now,
-			})
-			.onConflictDoUpdate({
-				target: newsItems.id,
-				set: {
-					listCheckedAt: now,
-				},
-			});
-
-		if (!existing) {
-			newlyInserted.push({ id: item.id });
-		}
-	}
-
-	return newlyInserted;
-}
+// Re-export shared functions from news-service
+export {
+	getStats,
+	getRecheckQueue,
+	invalidateBody,
+	deleteTranslation,
+	upsertListItems,
+} from "@hiroba/news-service";
 
 /**
  * Trigger a scrape for all categories.
