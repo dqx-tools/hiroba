@@ -1,0 +1,25 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import GlossaryImport from "../../components/GlossaryImport";
+---
+
+<Layout title="Import Glossary">
+	<p class="page-description">
+		Upload a CSV file with format: <code>japanese_text,translated_text</code>
+	</p>
+	<GlossaryImport client:load />
+</Layout>
+
+<style>
+	.page-description {
+		color: #666;
+		margin-bottom: 1.5rem;
+	}
+
+	code {
+		background: #f0f0f0;
+		padding: 0.2rem 0.4rem;
+		border-radius: 3px;
+		font-size: 0.9rem;
+	}
+</style>
