@@ -16,7 +16,17 @@ const db = createDb(runtime.env.DB);
 const result = await getNewsItemWithTranslation(db, id, "en", runtime.env.OPENAI_API_KEY);
 
 if (!result.success) {
-	return new Response("Not found", { status: 404 });
+	const err = result.error;
+	if (err.type === "not_found") {
+		return new Response("Not found", { status: 404 });
+	}
+	// For other errors, show error page with details
+	const messages = {
+		body_fetch_failed: `Failed to fetch content: ${err.type === "body_fetch_failed" ? err.error : ""}`,
+		content_unavailable: "Content not available yet",
+		translation_failed: `Translation failed: ${err.type === "translation_failed" ? err.error : ""}`,
+	};
+	return new Response(messages[err.type], { status: 500 });
 }
 
 const { item, translation } = result.data;
