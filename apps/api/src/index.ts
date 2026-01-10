@@ -10,6 +10,7 @@ import { D1Cache } from "./cache";
 import { fetchGlossary } from "./glossary";
 import { scrapeNewsList } from "./lib/list-scraper";
 import { upsertListItems } from "./lib/news-repository";
+import { publishUpdate } from "./lib/pubsub";
 
 import newsRoutes from "./routes/news";
 import adminRoutes from "./routes/admin";
@@ -45,8 +46,14 @@ app.get("/", (c) => {
 			news_list: "/api/news",
 			news_detail: "/api/news/:id",
 			news_translated: "/api/news/:id/:lang",
-			admin_scrape: "/api/admin/scrape",
-			admin_stats: "/api/admin/stats",
+			admin_scrape: "POST /api/admin/scrape",
+			admin_stats: "GET /api/admin/stats",
+			admin_recheck_queue: "GET /api/admin/recheck-queue",
+			admin_invalidate_body: "DELETE /api/admin/news/:id/body",
+			admin_delete_translation: "DELETE /api/admin/news/:id/:lang",
+			admin_glossary: "GET /api/admin/glossary",
+			admin_glossary_import: "POST /api/admin/glossary/import",
+			admin_glossary_delete: "DELETE /api/admin/glossary/:sourceText/:lang",
 		},
 	});
 });
@@ -112,5 +119,14 @@ export default {
 		console.log(
 			`Scheduled refresh complete: ${totalNew} new items, ${errors} errors`,
 		);
+
+		// Publish update event for WebSub subscribers (no-op for now)
+		if (totalNew > 0) {
+			await publishUpdate({
+				topic: "/api/feed/news",
+				contentType: "application/json",
+				content: JSON.stringify({ newItems: totalNew }),
+			});
+		}
 	},
 };

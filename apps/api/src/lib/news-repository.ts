@@ -4,9 +4,9 @@
  * Handles upserts from list scraping and queries for API endpoints.
  */
 
-import { eq, desc, and, lt, sql } from "drizzle-orm";
-import { newsItems, type Database } from "@hiroba/db";
-import type { ListItem, NewsItem, Category } from "@hiroba/shared";
+import { eq, desc, and, lt, sql, isNotNull } from "drizzle-orm";
+import { newsItems, translations, type Database } from "@hiroba/db";
+import { isDueForCheck, getNextCheckTime, type ListItem, type NewsItem, type Category } from "@hiroba/shared";
 
 /**
  * Upsert news items from list scraping.
@@ -142,37 +142,142 @@ export async function getNewsItem(
 export async function getStats(db: Database): Promise<{
 	totalItems: number;
 	itemsWithBody: number;
+	itemsTranslated: number;
+	itemsPendingRecheck: number;
 	byCategory: Record<string, number>;
 }> {
-	// Total count
-	const totalResult = await db
-		.select({ count: sql<number>`count(*)` })
-		.from(newsItems)
-		.get();
-	const totalItems = totalResult?.count ?? 0;
+	const [totalResult, withBodyResult, translatedResult, categoryResults] =
+		await Promise.all([
+			// Total count
+			db.select({ count: sql<number>`count(*)` }).from(newsItems).get(),
+			// Items with body content
+			db
+				.select({ count: sql<number>`count(*)` })
+				.from(newsItems)
+				.where(isNotNull(newsItems.contentJa))
+				.get(),
+			// Translated items (distinct news items with English translation)
+			db
+				.select({ count: sql<number>`count(DISTINCT item_id)` })
+				.from(translations)
+				.where(
+					and(eq(translations.itemType, "news"), eq(translations.language, "en")),
+				)
+				.get(),
+			// Count by category
+			db
+				.select({
+					category: newsItems.category,
+					count: sql<number>`count(*)`,
+				})
+				.from(newsItems)
+				.groupBy(newsItems.category)
+				.all(),
+		]);
 
-	// Items with body content
-	const withBodyResult = await db
-		.select({ count: sql<number>`count(*)` })
-		.from(newsItems)
-		.where(sql`${newsItems.contentJa} IS NOT NULL`)
-		.get();
-	const itemsWithBody = withBodyResult?.count ?? 0;
-
-	// Count by category
-	const categoryResults = await db
+	// Count items pending recheck (in-memory calculation)
+	const itemsWithFetchedBody = await db
 		.select({
-			category: newsItems.category,
-			count: sql<number>`count(*)`,
+			publishedAt: newsItems.publishedAt,
+			bodyFetchedAt: newsItems.bodyFetchedAt,
 		})
 		.from(newsItems)
-		.groupBy(newsItems.category)
+		.where(isNotNull(newsItems.bodyFetchedAt))
 		.all();
+
+	const itemsPendingRecheck = itemsWithFetchedBody.filter((item) =>
+		isDueForCheck(item.publishedAt, item.bodyFetchedAt),
+	).length;
 
 	const byCategory: Record<string, number> = {};
 	for (const row of categoryResults) {
 		byCategory[row.category] = row.count;
 	}
 
-	return { totalItems, itemsWithBody, byCategory };
+	return {
+		totalItems: totalResult?.count ?? 0,
+		itemsWithBody: withBodyResult?.count ?? 0,
+		itemsTranslated: translatedResult?.count ?? 0,
+		itemsPendingRecheck,
+		byCategory,
+	};
+}
+
+/**
+ * Get items due for body recheck, sorted by next check time.
+ */
+export async function getRecheckQueue(
+	db: Database,
+	limit: number = 50,
+): Promise<
+	Array<{
+		id: string;
+		titleJa: string;
+		category: string;
+		publishedAt: number;
+		bodyFetchedAt: number;
+		nextCheckAt: number;
+	}>
+> {
+	const items = await db
+		.select()
+		.from(newsItems)
+		.where(isNotNull(newsItems.bodyFetchedAt))
+		.all();
+
+	return items
+		.map((item) => ({
+			id: item.id,
+			titleJa: item.titleJa,
+			category: item.category,
+			publishedAt: item.publishedAt,
+			bodyFetchedAt: item.bodyFetchedAt!,
+			nextCheckAt: getNextCheckTime(item.publishedAt, item.bodyFetchedAt!),
+		}))
+		.filter((item) => item.nextCheckAt <= Date.now())
+		.sort((a, b) => a.nextCheckAt - b.nextCheckAt)
+		.slice(0, limit);
+}
+
+/**
+ * Invalidate cached body content for a news item.
+ */
+export async function invalidateBody(
+	db: Database,
+	id: string,
+): Promise<boolean> {
+	const result = await db
+		.update(newsItems)
+		.set({
+			contentJa: null,
+			sourceUpdatedAt: null,
+			bodyFetchedAt: null,
+			bodyFetchingSince: null,
+		})
+		.where(eq(newsItems.id, id))
+		.returning({ id: newsItems.id });
+
+	return result.length > 0;
+}
+
+/**
+ * Delete a translation for a news item.
+ */
+export async function deleteTranslation(
+	db: Database,
+	itemId: string,
+	language: string,
+): Promise<boolean> {
+	const result = await db
+		.delete(translations)
+		.where(
+			and(
+				eq(translations.itemType, "news"),
+				eq(translations.itemId, itemId),
+				eq(translations.language, language),
+			),
+		)
+		.returning({ itemId: translations.itemId });
+
+	return result.length > 0;
 }
