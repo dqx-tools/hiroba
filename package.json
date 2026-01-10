@@ -9,8 +9,9 @@
 		"typecheck": "turbo typecheck",
 		"test": "turbo test",
 		"lint": "turbo lint",
-		"db:migrate:local": "wrangler d1 migrations apply DB --local --config apps/api/wrangler.toml",
-		"db:migrate:prod": "wrangler d1 migrations apply DB --remote --config apps/api/wrangler.toml"
+		"db:setup": "mkdir -p .wrangler-shared/v3/d1 && ln -sfn v3/d1 .wrangler-shared/d1 && ln -sfn ../../.wrangler-shared apps/web/.wrangler && ln -sfn ../../.wrangler-shared apps/admin/.wrangler && pnpm db:migrate:local",
+		"db:migrate:local": "wrangler d1 migrations apply DB --local --persist-to .wrangler-shared --config apps/cron/wrangler.toml",
+		"db:migrate:prod": "wrangler d1 migrations apply DB --remote --config apps/cron/wrangler.toml"
 	},
 	"devDependencies": {
 		"turbo": "^2.3.0",

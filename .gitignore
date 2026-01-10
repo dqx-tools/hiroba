@@ -6,7 +6,8 @@ dist/
 .astro/
 
 # Cloudflare
-.wrangler/
+.wrangler
+.wrangler-shared
 .dev.vars
 
 # Turborepo

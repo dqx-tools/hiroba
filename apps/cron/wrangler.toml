@@ -20,3 +20,4 @@ migrations_dir = "migrations"
 crons = ["0 * * * *", "0 15 * * *"]
 
 # No HTTP routes - this worker is cron-only
+# Local D1 persistence is handled via --persist-to CLI flag in package.json
