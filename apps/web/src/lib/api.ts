@@ -1,8 +1,7 @@
 /**
- * API client for fetching news data from the Hiroba API.
+ * API client for fetching news data.
+ * Uses relative URLs since API endpoints are part of this app.
  */
-
-const API_URL = import.meta.env.API_URL || "http://localhost:8787";
 
 export interface NewsItem {
 	id: string;
@@ -42,7 +41,7 @@ export async function getNewsList(options?: {
 	if (options?.limit) params.set("limit", String(options.limit));
 	if (options?.cursor) params.set("cursor", options.cursor);
 
-	const url = `${API_URL}/api/news${params.toString() ? `?${params}` : ""}`;
+	const url = `/api/news${params.toString() ? `?${params}` : ""}`;
 	const res = await fetch(url);
 
 	if (!res.ok) {
@@ -59,7 +58,7 @@ export async function getNewsItem(
 	id: string,
 	lang: string = "en",
 ): Promise<NewsDetailResponse> {
-	const res = await fetch(`${API_URL}/api/news/${id}/${lang}`);
+	const res = await fetch(`/api/news/${id}/${lang}`);
 
 	if (!res.ok) {
 		throw new Error(`Failed to fetch news item: ${res.status}`);

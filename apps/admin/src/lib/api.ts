@@ -59,8 +59,6 @@ export interface NewsItem {
 	contentJa: string | null;
 }
 
-const PUBLIC_API_URL = import.meta.env.PUBLIC_API_URL || "http://localhost:8787";
-
 export async function getNewsList(options?: {
 	category?: string;
 	limit?: number;
@@ -68,7 +66,7 @@ export async function getNewsList(options?: {
 	const params = new URLSearchParams();
 	if (options?.category) params.set("category", options.category);
 	if (options?.limit) params.set("limit", String(options.limit));
-	const url = `${PUBLIC_API_URL}/api/news${params.toString() ? `?${params}` : ""}`;
+	const url = `/api/news${params.toString() ? `?${params}` : ""}`;
 	const res = await fetch(url);
 	if (!res.ok) throw new Error(`API error: ${res.status}`);
 	return res.json();

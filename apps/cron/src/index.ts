@@ -16,6 +16,15 @@ type Bindings = {
 
 export default {
 	/**
+	 * No HTTP routes - redirect any requests to the main web app.
+	 */
+	async fetch(): Promise<Response> {
+		return new Response("This worker handles cron jobs only. API is at hiroba.dqx.tools", {
+			status: 404,
+		});
+	},
+
+	/**
 	 * Handle scheduled cron jobs.
 	 *
 	 * Triggers:
