@@ -5,7 +5,7 @@
  * request the same translation simultaneously.
  */
 
-import { eq, and, or, lt, isNull } from "drizzle-orm";
+import { eq, and, or, lt, isNull, sql } from "drizzle-orm";
 import { translations, glossary, type Database } from "@hiroba/db";
 import { LOCK_CONFIG, isTranslationStale } from "@hiroba/shared";
 import OpenAI from "openai";
@@ -82,14 +82,20 @@ export async function getOrCreateTranslation(
 
 	if (claimed) {
 		try {
-			// Fetch glossary entries for this language
+			// Fetch only glossary entries that appear in the source text
+			const combinedSource = `${sourceTitle} ${sourceContent}`;
 			const glossaryEntries = await db
 				.select({
 					sourceText: glossary.sourceText,
 					translatedText: glossary.translatedText,
 				})
 				.from(glossary)
-				.where(eq(glossary.targetLanguage, language))
+				.where(
+					and(
+						eq(glossary.targetLanguage, language),
+						sql`instr(${combinedSource}, ${glossary.sourceText}) > 0`,
+					),
+				)
 				.all();
 
 			// Do AI translation
