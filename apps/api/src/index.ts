@@ -4,9 +4,8 @@
 
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { createDb, type Database } from "@hiroba/db";
-import { CATEGORIES, type Category } from "@hiroba/shared";
-import { D1Cache } from "./cache";
+import { createDb, glossary, type Database } from "@hiroba/db";
+import { CATEGORIES } from "@hiroba/shared";
 import { fetchGlossary } from "./glossary";
 import { scrapeNewsList } from "./lib/list-scraper";
 import { upsertListItems } from "./lib/news-repository";
@@ -73,7 +72,6 @@ export default {
 		env: Bindings,
 		_ctx: ExecutionContext,
 	): Promise<void> {
-		const cache = new D1Cache(env.DB);
 		const db = createDb(env.DB);
 
 		// "0 15 * * *" = glossary refresh (daily at midnight JST)
@@ -81,17 +79,40 @@ export default {
 		const isGlossaryRefresh = controller.cron === "0 15 * * *";
 
 		if (isGlossaryRefresh) {
-			await this.refreshGlossary(cache);
+			await this.refreshGlossary(db);
 		} else {
 			await this.refreshNews(db);
 		}
 	},
 
-	async refreshGlossary(cache: D1Cache): Promise<void> {
+	async refreshGlossary(db: Database): Promise<void> {
 		try {
 			const entries = await fetchGlossary();
-			const count = await cache.updateGlossary(entries);
-			console.log(`Glossary refresh complete: ${count} entries loaded`);
+			const now = Math.floor(Date.now() / 1000);
+
+			// Clear existing glossary and insert new entries
+			await db.delete(glossary);
+
+			// Insert in batches
+			const BATCH_SIZE = 100;
+			let inserted = 0;
+
+			for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+				const batch = entries.slice(i, i + BATCH_SIZE);
+
+				await db.insert(glossary).values(
+					batch.map((e) => ({
+						sourceText: e.japanese_text,
+						targetLanguage: "en",
+						translatedText: e.english_text,
+						updatedAt: now,
+					})),
+				);
+
+				inserted += batch.length;
+			}
+
+			console.log(`Glossary refresh complete: ${inserted} entries loaded`);
 		} catch (error) {
 			console.error("Glossary refresh failed:", error);
 		}
