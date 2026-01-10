@@ -3,7 +3,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "astro dev --port 4321",
+		"dev": "dotenv -e ../../.env -- astro dev --port 4321",
 		"build": "astro build",
 		"preview": "astro preview",
 		"deploy": "wrangler pages deploy dist"
