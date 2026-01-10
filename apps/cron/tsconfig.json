@@ -2,7 +2,7 @@
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
 		"lib": ["ES2022"],
-		"types": ["./worker-configuration.d.ts", "node"],
+		"types": ["@cloudflare/workers-types"],
 		"outDir": "./dist"
 	},
 	"include": ["src/**/*.ts"],

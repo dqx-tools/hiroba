@@ -1,0 +1,22 @@
+# Cron-only worker for scheduled news and glossary refresh
+name = "hiroba-cron"
+main = "src/index.ts"
+compatibility_date = "2025-11-21"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dqx-tools--news-db"
+database_id = "local"
+migrations_dir = "migrations"
+
+# Scheduled triggers:
+# - Hourly news refresh (first page of each category)
+# - Daily glossary refresh (midnight JST = 15:00 UTC)
+[triggers]
+crons = ["0 * * * *", "0 15 * * *"]
+
+# No HTTP routes - this worker is cron-only

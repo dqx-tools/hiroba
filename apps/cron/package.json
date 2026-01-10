@@ -1,0 +1,27 @@
+{
+	"name": "@hiroba/cron",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev --test-scheduled",
+		"start": "wrangler dev",
+		"build": "tsc --noEmit",
+		"typecheck": "tsc --noEmit",
+		"lint": "eslint ."
+	},
+	"dependencies": {
+		"@hiroba/db": "workspace:*",
+		"@hiroba/news-service": "workspace:*",
+		"@hiroba/scraper": "workspace:*",
+		"@hiroba/shared": "workspace:*",
+		"drizzle-orm": "1.0.0-beta.6-cd45bda"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "^4.20250507.0",
+		"drizzle-kit": "1.0.0-beta.6-cd45bda",
+		"typescript": "^5.9.3",
+		"wrangler": "^4.54.0"
+	}
+}
