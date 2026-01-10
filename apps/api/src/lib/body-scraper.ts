@@ -3,8 +3,7 @@
  */
 
 import * as cheerio from "cheerio";
-import type { AnyNode } from "domhandler";
-import { SCRAPE_CONFIG } from "@hiroba/shared";
+import { SCRAPE_CONFIG, parseJstDateToUnix } from "@hiroba/shared";
 
 export interface BodyContent {
 	contentJa: string;
@@ -33,79 +32,31 @@ export async function fetchNewsBody(id: string): Promise<BodyContent> {
 }
 
 /**
- * Parse a date string as JST and return Unix timestamp in seconds.
- */
-function parseJstDateToUnix(dateStr: string): number {
-	if (!dateStr) return Math.floor(Date.now() / 1000);
-
-	// Normalize separators
-	const normalized = dateStr.replace(/\//g, "-").trim();
-
-	// Try parsing with time: "2024-01-15 10:30"
-	let match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
-	if (match) {
-		const [, year, month, day, hour, minute] = match;
-		const isoStr = `${year}-${month}-${day}T${hour}:${minute}:00+09:00`;
-		return Math.floor(new Date(isoStr).getTime() / 1000);
-	}
-
-	// Try parsing date only: "2024-01-15"
-	match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-	if (match) {
-		const [, year, month, day] = match;
-		const isoStr = `${year}-${month}-${day}T00:00:00+09:00`;
-		return Math.floor(new Date(isoStr).getTime() / 1000);
-	}
-
-	return Math.floor(Date.now() / 1000);
-}
-
-/**
  * Extract the main content from a detail page.
  */
 function parseDetailPage(html: string): BodyContent {
 	const $ = cheerio.load(html);
 
-	// Extract source updated timestamp from page
+	// Extract date from p.newsDate
 	let sourceUpdatedAt = Math.floor(Date.now() / 1000);
-	const dateMatch = html.match(
-		/(\d{4}[-/]\d{2}[-/]\d{2}(?:\s+\d{2}:\d{2})?)/,
-	);
-	if (dateMatch) {
-		sourceUpdatedAt = parseJstDateToUnix(dateMatch[1]);
+	const dateText = $("p.newsDate").first().text().trim();
+	if (dateText) {
+		sourceUpdatedAt = parseJstDateToUnix(dateText);
 	}
 
-	// Try to find main content area using various selectors
-	const selectors = [
-		"div[class*='newsdetail']",
-		"div[class*='article']",
-		"div[class*='content']",
-		"div[class*='body']",
-		"article",
-		"main",
-	];
-
-	let contentElem: cheerio.Cheerio<AnyNode> | null = null;
-	for (const selector of selectors) {
-		const found = $(selector).first();
-		if (found.length) {
-			contentElem = found;
-			break;
-		}
-	}
-
-	if (!contentElem) {
-		// Fallback: get body and remove navigation elements
-		contentElem = $("body");
-		if (contentElem.length) {
-			contentElem.find("nav, header, footer, script, style").remove();
-		}
-	}
-
+	// Extract content from div.newsContent
+	const contentElem = $("div.newsContent");
 	let contentJa = "";
-	if (contentElem && contentElem.length) {
-		// Get text content, normalize whitespace
-		contentJa = contentElem.text().replace(/\s+/g, " ").trim();
+	if (contentElem.length) {
+		// Get text content, preserving some structure
+		contentJa = contentElem
+			.html()!
+			.replace(/<br\s*\/?>/gi, "\n")
+			.replace(/<\/p>/gi, "\n\n")
+			.replace(/<[^>]+>/g, "")
+			.replace(/&nbsp;/g, " ")
+			.replace(/\n{3,}/g, "\n\n")
+			.trim();
 	}
 
 	return {

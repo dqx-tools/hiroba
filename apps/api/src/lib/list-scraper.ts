@@ -10,6 +10,7 @@ import type { AnyNode } from "domhandler";
 import {
 	CATEGORIES,
 	SCRAPE_CONFIG,
+	parseJstDateToUnix,
 	type Category,
 	type ListItem,
 } from "@hiroba/shared";
@@ -27,55 +28,28 @@ export const CATEGORY_TO_ID: Record<Category, number> = {
 };
 
 /**
- * Parse a date string as JST and return Unix timestamp in seconds.
- * Input formats: "2024/01/15", "2024-01-15", "2024/01/15 10:30"
- */
-export function parseJstDateToUnix(dateStr: string): number {
-	if (!dateStr) return Math.floor(Date.now() / 1000);
-
-	// Normalize separators
-	const normalized = dateStr.replace(/\//g, "-").trim();
-
-	// Try parsing with time: "2024-01-15 10:30"
-	let match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
-	if (match) {
-		const [, year, month, day, hour, minute] = match;
-		// Create date in JST (UTC+9) and convert to Unix timestamp
-		const isoStr = `${year}-${month}-${day}T${hour}:${minute}:00+09:00`;
-		return Math.floor(new Date(isoStr).getTime() / 1000);
-	}
-
-	// Try parsing date only: "2024-01-15"
-	match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-	if (match) {
-		const [, year, month, day] = match;
-		const isoStr = `${year}-${month}-${day}T00:00:00+09:00`;
-		return Math.floor(new Date(isoStr).getTime() / 1000);
-	}
-
-	// Fallback to current time
-	return Math.floor(Date.now() / 1000);
-}
-
-/**
- * Extract date from near an element (sibling or parent text).
+ * Extract date from the same table row as the link.
+ * Structure: <tr><td class="news"><a>...</a></td><td class="date"><div>DATE</div></td></tr>
  */
 function extractDateNearElement(
 	$: cheerio.CheerioAPI,
 	element: cheerio.Cheerio<AnyNode>,
 ): string {
-	// Look for date pattern in parent's text
-	const parent = element.parent();
-	if (parent.length) {
-		const text = parent.text();
-		const match = text.match(/(\d{4}[-/]\d{2}[-/]\d{2}(?:\s+\d{2}:\d{2})?)/);
-		if (match) return match[1];
+	// The link is inside td.news, look for sibling td.date in same row
+	const parentTd = element.closest("td");
+	if (parentTd.length) {
+		const dateTd = parentTd.siblings("td.date").first();
+		if (dateTd.length) {
+			const text = dateTd.text().trim();
+			const match = text.match(/(\d{4}[-/]\d{2}[-/]\d{2}(?:\s+\d{2}:\d{2})?)/);
+			if (match) return match[1];
+		}
 	}
 
-	// Look in siblings
-	const siblings = element.nextAll().slice(0, 3);
-	for (let i = 0; i < siblings.length; i++) {
-		const text = $(siblings[i]).text();
+	// Fallback: look for date pattern in the row
+	const row = element.closest("tr");
+	if (row.length) {
+		const text = row.text();
 		const match = text.match(/(\d{4}[-/]\d{2}[-/]\d{2}(?:\s+\d{2}:\d{2})?)/);
 		if (match) return match[1];
 	}
