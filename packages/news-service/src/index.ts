@@ -21,3 +21,10 @@ export { fetchNewsBody } from "./body-scraper";
 
 // AI translation
 export { getOrCreateTranslation, type TranslationResult } from "./ai-translator";
+
+// High-level composed operations
+export {
+	getNewsItemWithTranslation,
+	type NewsDetailResult,
+	type NewsDetailError,
+} from "./news-detail";

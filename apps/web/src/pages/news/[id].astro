@@ -1,6 +1,7 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { getNewsItem } from "../../lib/api";
+import { createDb } from "@hiroba/db";
+import { getNewsItemWithTranslation } from "@hiroba/news-service";
 import { CATEGORY_LABELS, type Category } from "@hiroba/shared";
 
 const { id } = Astro.params;
@@ -9,21 +10,16 @@ if (!id) {
 	return Astro.redirect("/");
 }
 
-let item;
-let translation;
+const runtime = Astro.locals.runtime;
+const db = createDb(runtime.env.DB);
 
-try {
-	const result = await getNewsItem(id, "en");
-	item = result.item;
-	translation = result.translation;
-} catch {
+const result = await getNewsItemWithTranslation(db, id, "en", runtime.env.OPENAI_API_KEY);
+
+if (!result.success) {
 	return new Response("Not found", { status: 404 });
 }
 
-if (!item) {
-	return new Response("Not found", { status: 404 });
-}
-
+const { item, translation } = result.data;
 const title = translation?.title || item.titleJa;
 const content = translation?.content || item.contentJa || "Content not available";
 const categoryLabel = CATEGORY_LABELS[item.category as Category] || item.category;

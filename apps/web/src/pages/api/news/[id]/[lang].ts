@@ -6,7 +6,7 @@
 
 import type { APIRoute } from "astro";
 import { createDb } from "@hiroba/db";
-import { getNewsItem, getNewsBodyWithFetch, getOrCreateTranslation } from "@hiroba/news-service";
+import { getNewsItemWithTranslation } from "@hiroba/news-service";
 
 export const GET: APIRoute = async ({ locals, params }) => {
 	const runtime = locals.runtime;
@@ -29,64 +29,39 @@ export const GET: APIRoute = async ({ locals, params }) => {
 		);
 	}
 
-	const item = await getNewsItem(db, id);
+	const result = await getNewsItemWithTranslation(db, id, lang, runtime.env.OPENAI_API_KEY);
 
-	if (!item) {
-		return new Response(JSON.stringify({ error: "Not found" }), {
-			status: 404,
-			headers: { "Content-Type": "application/json" },
-		});
-	}
+	if (!result.success) {
+		const err = result.error;
+		let status: number;
+		let message: string;
 
-	// Ensure body is fetched
-	if (item.contentJa === null) {
-		try {
-			const body = await getNewsBodyWithFetch(db, id);
-			if (body) {
-				item.contentJa = body.contentJa;
-				item.sourceUpdatedAt = body.sourceUpdatedAt;
-			}
-		} catch (error) {
-			return new Response(
-				JSON.stringify({ error: `Failed to fetch content: ${error}` }),
-				{
-					status: 500,
-					headers: { "Content-Type": "application/json" },
-				},
-			);
+		switch (err.type) {
+			case "not_found":
+				status = 404;
+				message = "Not found";
+				break;
+			case "body_fetch_failed":
+				status = 500;
+				message = `Failed to fetch content: ${err.error}`;
+				break;
+			case "content_unavailable":
+				status = 500;
+				message = "Content not available";
+				break;
+			case "translation_failed":
+				status = 500;
+				message = `Translation failed: ${err.error}`;
+				break;
 		}
-	}
 
-	if (!item.contentJa) {
-		return new Response(JSON.stringify({ error: "Content not available" }), {
-			status: 500,
+		return new Response(JSON.stringify({ error: message }), {
+			status,
 			headers: { "Content-Type": "application/json" },
 		});
 	}
 
-	// Get or create translation
-	try {
-		const translation = await getOrCreateTranslation(
-			db,
-			id,
-			"news",
-			lang,
-			item.titleJa,
-			item.contentJa,
-			item.sourceUpdatedAt ?? Math.floor(Date.now() / 1000),
-			runtime.env.OPENAI_API_KEY,
-		);
-
-		return new Response(JSON.stringify({ item, translation }), {
-			headers: { "Content-Type": "application/json" },
-		});
-	} catch (error) {
-		return new Response(
-			JSON.stringify({ error: `Translation failed: ${error}` }),
-			{
-				status: 500,
-				headers: { "Content-Type": "application/json" },
-			},
-		);
-	}
+	return new Response(JSON.stringify(result.data), {
+		headers: { "Content-Type": "application/json" },
+	});
 };
