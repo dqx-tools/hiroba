@@ -62,8 +62,12 @@ export default function Dashboard() {
 					<p className="stat-value">{stats.totalItems}</p>
 				</div>
 				<div className="stat-card">
-					<h3>With Body</h3>
+					<h3>With Body (contentJa)</h3>
 					<p className="stat-value">{stats.itemsWithBody}</p>
+				</div>
+				<div className="stat-card">
+					<h3>With bodyFetchedAt</h3>
+					<p className="stat-value">{stats.itemsWithBodyFetchedAt}</p>
 				</div>
 				<div className="stat-card">
 					<h3>Translated</h3>

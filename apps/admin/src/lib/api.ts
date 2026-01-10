@@ -16,6 +16,7 @@ async function adminFetch(path: string, options: RequestInit = {}) {
 export interface Stats {
 	totalItems: number;
 	itemsWithBody: number;
+	itemsWithBodyFetchedAt: number;
 	itemsTranslated: number;
 	itemsPendingRecheck: number;
 	byCategory: Record<string, number>;

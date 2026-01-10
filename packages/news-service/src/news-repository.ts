@@ -142,6 +142,7 @@ export async function getNewsItem(
 export async function getStats(db: Database): Promise<{
 	totalItems: number;
 	itemsWithBody: number;
+	itemsWithBodyFetchedAt: number;
 	itemsTranslated: number;
 	itemsPendingRecheck: number;
 	byCategory: Record<string, number>;
@@ -197,6 +198,7 @@ export async function getStats(db: Database): Promise<{
 	return {
 		totalItems: totalResult?.count ?? 0,
 		itemsWithBody: withBodyResult?.count ?? 0,
+		itemsWithBodyFetchedAt: itemsWithFetchedBody.length,
 		itemsTranslated: translatedResult?.count ?? 0,
 		itemsPendingRecheck,
 		byCategory,
