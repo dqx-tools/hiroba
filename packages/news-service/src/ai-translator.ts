@@ -41,7 +41,7 @@ export async function getOrCreateTranslation(
 	language: string,
 	sourceTitle: string,
 	sourceContent: string,
-	sourceUpdatedAt: number,
+	publishedAt: number,
 	aiApiKey: string,
 ): Promise<TranslationResult> {
 	// Check for existing translation
@@ -58,7 +58,7 @@ export async function getOrCreateTranslation(
 		.get();
 
 	// If exists and not stale, return it
-	if (existing && !isTranslationStale(sourceUpdatedAt, existing.translatedAt)) {
+	if (existing && !isTranslationStale(publishedAt, existing.translatedAt)) {
 		return {
 			title: existing.title,
 			content: existing.content,

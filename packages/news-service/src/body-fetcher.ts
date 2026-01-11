@@ -24,7 +24,6 @@ export async function getNewsBodyWithFetch(
 	const item = await db
 		.select({
 			contentJa: newsItems.contentJa,
-			sourceUpdatedAt: newsItems.sourceUpdatedAt,
 			bodyFetchingSince: newsItems.bodyFetchingSince,
 		})
 		.from(newsItems)
@@ -35,10 +34,7 @@ export async function getNewsBodyWithFetch(
 
 	// If body exists, return it
 	if (item.contentJa !== null) {
-		return {
-			contentJa: item.contentJa,
-			sourceUpdatedAt: item.sourceUpdatedAt!,
-		};
+		return { contentJa: item.contentJa };
 	}
 
 	// Try to claim the fetch lock
@@ -68,7 +64,6 @@ export async function getNewsBodyWithFetch(
 				.update(newsItems)
 				.set({
 					contentJa: body.contentJa,
-					sourceUpdatedAt: body.sourceUpdatedAt,
 					bodyFetchedAt: now,
 					bodyFetchingSince: null,
 				})
@@ -106,7 +101,6 @@ async function pollForBody(
 		const item = await db
 			.select({
 				contentJa: newsItems.contentJa,
-				sourceUpdatedAt: newsItems.sourceUpdatedAt,
 				bodyFetchingSince: newsItems.bodyFetchingSince,
 			})
 			.from(newsItems)
@@ -115,10 +109,7 @@ async function pollForBody(
 
 		// Body is now available
 		if (item && item.contentJa !== null) {
-			return {
-				contentJa: item.contentJa,
-				sourceUpdatedAt: item.sourceUpdatedAt!,
-			};
+			return { contentJa: item.contentJa };
 		}
 
 		// Lock was released without body (error case) - we could try to claim

@@ -3,11 +3,10 @@
  */
 
 import * as cheerio from "cheerio";
-import { SCRAPE_CONFIG, parseJstDateToUnix } from "@hiroba/shared";
+import { SCRAPE_CONFIG } from "@hiroba/shared";
 
 export interface BodyContent {
 	contentJa: string;
-	sourceUpdatedAt: number;
 }
 
 /**
@@ -37,13 +36,6 @@ export async function fetchNewsBody(id: string): Promise<BodyContent> {
 function parseDetailPage(html: string): BodyContent {
 	const $ = cheerio.load(html);
 
-	// Extract date from p.newsDate
-	let sourceUpdatedAt = Math.floor(Date.now() / 1000);
-	const dateText = $("p.newsDate").first().text().trim();
-	if (dateText) {
-		sourceUpdatedAt = parseJstDateToUnix(dateText);
-	}
-
 	// Extract content from div.newsContent
 	const contentElem = $("div.newsContent");
 	let contentJa = "";
@@ -59,8 +51,5 @@ function parseDetailPage(html: string): BodyContent {
 			.trim();
 	}
 
-	return {
-		contentJa,
-		sourceUpdatedAt,
-	};
+	return { contentJa };
 }

@@ -45,7 +45,6 @@ export async function getNewsItemWithTranslation(
 			const body = await getNewsBodyWithFetch(db, id);
 			if (body) {
 				item.contentJa = body.contentJa;
-				item.sourceUpdatedAt = body.sourceUpdatedAt;
 			}
 		} catch (error) {
 			return { success: false, error: { type: "body_fetch_failed", error } };
@@ -65,7 +64,7 @@ export async function getNewsItemWithTranslation(
 			lang,
 			item.titleJa,
 			item.contentJa,
-			item.sourceUpdatedAt ?? Math.floor(Date.now() / 1000),
+			item.publishedAt,
 			aiApiKey,
 		);
 

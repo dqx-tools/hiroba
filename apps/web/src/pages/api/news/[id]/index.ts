@@ -26,7 +26,6 @@ export const GET: APIRoute = async ({ locals, params }) => {
 			const body = await getNewsBodyWithFetch(db, id);
 			if (body) {
 				item.contentJa = body.contentJa;
-				item.sourceUpdatedAt = body.sourceUpdatedAt;
 			}
 		} catch (error) {
 			// Body fetch failed but we can still return metadata

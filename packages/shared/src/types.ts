@@ -29,7 +29,6 @@ export interface NewsItem {
 	category: Category;
 	publishedAt: number;
 	contentJa: string | null;
-	sourceUpdatedAt: number | null;
 	bodyFetchedAt: number | null;
 }
 
@@ -114,5 +113,4 @@ export interface ScrapeOptions {
  */
 export interface BodyContent {
 	contentJa: string;
-	sourceUpdatedAt: number;
 }

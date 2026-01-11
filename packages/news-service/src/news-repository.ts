@@ -88,7 +88,6 @@ export async function getNewsItems(
 		category: row.category as Category,
 		publishedAt: row.publishedAt,
 		contentJa: row.contentJa,
-		sourceUpdatedAt: row.sourceUpdatedAt,
 		bodyFetchedAt: row.bodyFetchedAt,
 	}));
 
@@ -122,7 +121,6 @@ export async function getNewsItem(
 		category: result.category as Category,
 		publishedAt: result.publishedAt,
 		contentJa: result.contentJa,
-		sourceUpdatedAt: result.sourceUpdatedAt,
 		bodyFetchedAt: result.bodyFetchedAt,
 	};
 }
@@ -243,7 +241,6 @@ export async function invalidateBody(
 		.update(newsItems)
 		.set({
 			contentJa: null,
-			sourceUpdatedAt: null,
 			bodyFetchedAt: null,
 			bodyFetchingSince: null,
 		})

@@ -3,7 +3,7 @@
  *
  * Supports two-phase scraping:
  * - Phase 1 (list scraping): Populates id, titleJa, category, publishedAt
- * - Phase 2 (body scraping): Populates contentJa, sourceUpdatedAt on demand
+ * - Phase 2 (body scraping): Populates contentJa on demand
  */
 
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
@@ -19,7 +19,6 @@ export const newsItems = sqliteTable("news_items", {
 
 	// From detail page (Phase 2) - NULL if not yet fetched
 	contentJa: text("content_ja"),
-	sourceUpdatedAt: integer("source_updated_at"), // Unix timestamp
 
 	// Body fetch tracking
 	bodyFetchedAt: integer("body_fetched_at"), // Unix timestamp

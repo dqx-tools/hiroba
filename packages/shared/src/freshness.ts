@@ -56,19 +56,17 @@ export function isDueForCheck(
 }
 
 /**
- * Check if a translation is stale (source was updated after translation).
+ * Check if a translation is stale (source was published after translation).
  *
- * @param sourceUpdatedAt - When the source content was last updated (Unix seconds)
+ * @param publishedAt - When the source content was published (Unix seconds)
  * @param translatedAt - When the translation was created (Unix seconds)
  * @returns True if the translation needs to be regenerated
  */
 export function isTranslationStale(
-	sourceUpdatedAt: number | null,
+	publishedAt: number,
 	translatedAt: number,
 ): boolean {
-	// If we don't know when source was updated, assume not stale
-	if (sourceUpdatedAt === null) return false;
-	return sourceUpdatedAt > translatedAt;
+	return publishedAt > translatedAt;
 }
 
 /**
