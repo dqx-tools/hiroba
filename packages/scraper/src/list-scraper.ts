@@ -12,8 +12,8 @@ import {
 	SCRAPE_CONFIG,
 	parseJstDateToUnix,
 	type Category,
-	type ListItem,
 } from "@hiroba/shared";
+import type { ListItem } from "@hiroba/db";
 
 const BASE_URL = SCRAPE_CONFIG.baseUrl;
 

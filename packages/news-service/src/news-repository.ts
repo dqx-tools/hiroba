@@ -5,8 +5,8 @@
  */
 
 import { eq, desc, and, lt, sql, isNotNull } from "drizzle-orm";
-import { newsItems, translations, type Database, type NewsItem } from "@hiroba/db";
-import { isDueForCheck, getNextCheckTime, type ListItem, type Category } from "@hiroba/shared";
+import { newsItems, translations, type Database, type NewsItem, type ListItem } from "@hiroba/db";
+import { isDueForCheck, getNextCheckTime, type Category } from "@hiroba/shared";
 
 /**
  * Upsert news items from list scraping.

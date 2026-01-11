@@ -28,3 +28,6 @@ export const newsItems = sqliteTable("news_items", {
 // Type exports
 export type NewsItem = typeof newsItems.$inferSelect;
 export type NewNewsItem = typeof newsItems.$inferInsert;
+
+/** Phase 1 (list scraping) fields only */
+export type ListItem = Pick<NewsItem, "id" | "titleJa" | "category" | "publishedAt">;
