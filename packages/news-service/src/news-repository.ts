@@ -5,8 +5,8 @@
  */
 
 import { eq, desc, and, lt, sql, isNotNull } from "drizzle-orm";
-import { newsItems, translations, type Database } from "@hiroba/db";
-import { isDueForCheck, getNextCheckTime, type ListItem, type NewsItem, type Category } from "@hiroba/shared";
+import { newsItems, translations, type Database, type NewsItem } from "@hiroba/db";
+import { isDueForCheck, getNextCheckTime, type ListItem, type Category } from "@hiroba/shared";
 
 /**
  * Upsert news items from list scraping.
@@ -79,17 +79,7 @@ export async function getNewsItems(
 
 	const results = await query.all();
 	const hasMore = results.length > limit;
-	const dbItems = hasMore ? results.slice(0, -1) : results;
-
-	// Map database schema to shared NewsItem type
-	const items: NewsItem[] = dbItems.map((row) => ({
-		id: row.id,
-		titleJa: row.titleJa,
-		category: row.category as Category,
-		publishedAt: row.publishedAt,
-		contentJa: row.contentJa,
-		bodyFetchedAt: row.bodyFetchedAt,
-	}));
+	const items = hasMore ? results.slice(0, -1) : results;
 
 	return {
 		items,
@@ -112,17 +102,7 @@ export async function getNewsItem(
 		.from(newsItems)
 		.where(eq(newsItems.id, id))
 		.get();
-
-	if (!result) return null;
-
-	return {
-		id: result.id,
-		titleJa: result.titleJa,
-		category: result.category as Category,
-		publishedAt: result.publishedAt,
-		contentJa: result.contentJa,
-		bodyFetchedAt: result.bodyFetchedAt,
-	};
+	return result ?? null;
 }
 
 /**

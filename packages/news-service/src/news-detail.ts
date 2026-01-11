@@ -4,8 +4,7 @@
  * Combines body fetching and translation into a single call.
  */
 
-import type { Database } from "@hiroba/db";
-import type { NewsItem } from "@hiroba/shared";
+import type { Database, NewsItem } from "@hiroba/db";
 import { getNewsItem } from "./news-repository";
 import { getNewsBodyWithFetch } from "./body-fetcher";
 import { getOrCreateTranslation, type TranslationResult } from "./ai-translator";
