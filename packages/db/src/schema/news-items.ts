@@ -17,9 +17,6 @@ export const newsItems = sqliteTable("news_items", {
 	category: text("category").notNull(), // news|event|update|maintenance
 	publishedAt: integer("published_at").notNull(), // Unix timestamp
 
-	// Tracking when we last saw this in a list scrape
-	listCheckedAt: integer("list_checked_at").notNull(), // Unix timestamp
-
 	// From detail page (Phase 2) - NULL if not yet fetched
 	contentJa: text("content_ja"),
 	sourceUpdatedAt: integer("source_updated_at"), // Unix timestamp

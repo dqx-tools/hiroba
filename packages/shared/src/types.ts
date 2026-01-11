@@ -28,7 +28,6 @@ export interface NewsItem {
 	titleJa: string;
 	category: Category;
 	publishedAt: number;
-	listCheckedAt: number;
 	contentJa: string | null;
 	sourceUpdatedAt: number | null;
 	bodyFetchedAt: number | null;

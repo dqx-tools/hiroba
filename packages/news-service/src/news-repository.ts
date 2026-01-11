@@ -16,7 +16,6 @@ export async function upsertListItems(
 	db: Database,
 	items: ListItem[],
 ): Promise<ListItem[]> {
-	const now = Math.floor(Date.now() / 1000);
 	const newlyInserted: ListItem[] = [];
 
 	for (const item of items) {
@@ -34,14 +33,8 @@ export async function upsertListItems(
 				titleJa: item.titleJa,
 				category: item.category,
 				publishedAt: item.publishedAt,
-				listCheckedAt: now,
 			})
-			.onConflictDoUpdate({
-				target: newsItems.id,
-				set: {
-					listCheckedAt: now,
-				},
-			});
+			.onConflictDoNothing();
 
 		// Track if this was a new insert
 		if (!existing) {
@@ -94,7 +87,6 @@ export async function getNewsItems(
 		titleJa: row.titleJa,
 		category: row.category as Category,
 		publishedAt: row.publishedAt,
-		listCheckedAt: row.listCheckedAt,
 		contentJa: row.contentJa,
 		sourceUpdatedAt: row.sourceUpdatedAt,
 		bodyFetchedAt: row.bodyFetchedAt,
@@ -129,7 +121,6 @@ export async function getNewsItem(
 		titleJa: result.titleJa,
 		category: result.category as Category,
 		publishedAt: result.publishedAt,
-		listCheckedAt: result.listCheckedAt,
 		contentJa: result.contentJa,
 		sourceUpdatedAt: result.sourceUpdatedAt,
 		bodyFetchedAt: result.bodyFetchedAt,
