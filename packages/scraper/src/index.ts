@@ -14,6 +14,9 @@ export {
 	CATEGORY_TO_ID,
 } from "./list-scraper";
 
+// Body scraper
+export { fetchNewsBody, type BodyContent } from "./body-scraper";
+
 // Glossary fetcher
 export {
 	fetchGlossary,

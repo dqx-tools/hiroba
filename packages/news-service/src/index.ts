@@ -17,7 +17,6 @@ export {
 
 // Body fetching
 export { getNewsBodyWithFetch, type BodyContent } from "./body-fetcher";
-export { fetchNewsBody } from "./body-scraper";
 
 // AI translation
 export { getOrCreateTranslation, type TranslationResult } from "./ai-translator";
