@@ -1,24 +1,22 @@
 /**
  * Database operations for admin API routes.
- *
- * Re-exports shared functions from @hiroba/news-service and provides
- * admin-specific functions for scraping and glossary management.
  */
 
 import { eq, and, sql } from "drizzle-orm";
-import { glossary, type Database } from "@hiroba/db";
-import { type Category, CATEGORIES } from "@hiroba/shared";
-import { scrapeNewsList } from "@hiroba/scraper";
-import { upsertListItems } from "@hiroba/news-service";
-
-// Re-export shared functions from news-service
-export {
+import {
+	glossary,
+	type Database,
+	upsertListItems,
 	getStats,
 	getRecheckQueue,
 	invalidateBody,
 	deleteTranslation,
-	upsertListItems,
-} from "@hiroba/news-service";
+} from "@hiroba/db";
+import { type Category, CATEGORIES } from "@hiroba/shared";
+import { scrapeNewsList } from "@hiroba/scraper";
+
+// Re-export db functions
+export { getStats, getRecheckQueue, invalidateBody, deleteTranslation, upsertListItems };
 
 /**
  * Trigger a scrape for all categories.

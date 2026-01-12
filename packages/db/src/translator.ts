@@ -6,7 +6,9 @@
  */
 
 import { eq, and, or, lt, isNull, sql } from "drizzle-orm";
-import { translations, glossary, type Database } from "@hiroba/db";
+import { translations } from "./schema/translations";
+import { glossary } from "./schema/glossary";
+import type { Database } from "./client";
 import { LOCK_CONFIG, isTranslationStale } from "@hiroba/shared";
 import OpenAI from "openai";
 

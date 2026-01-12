@@ -8,8 +8,7 @@
  */
 
 import type { APIRoute } from "astro";
-import { createDb } from "@hiroba/db";
-import { getNewsItems } from "@hiroba/news-service";
+import { createDb, getNewsItems } from "@hiroba/db";
 import type { Category } from "@hiroba/shared";
 
 export const GET: APIRoute = async ({ locals, url }) => {

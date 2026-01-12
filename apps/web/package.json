@@ -11,7 +11,7 @@
 	"dependencies": {
 		"@astrojs/cloudflare": "^12.0.0",
 		"@hiroba/db": "workspace:*",
-		"@hiroba/news-service": "workspace:*",
+		"@hiroba/scraper": "workspace:*",
 		"@hiroba/shared": "workspace:*",
 		"astro": "^5.1.0"
 	},

@@ -1,11 +1,12 @@
 /**
- * Database operations for news items using Drizzle ORM.
- *
- * Handles upserts from list scraping and queries for API endpoints.
+ * Database queries for news items.
  */
 
 import { eq, desc, and, lt, sql, isNotNull } from "drizzle-orm";
-import { newsItems, translations, type Database, type NewsItem, type ListItem } from "@hiroba/db";
+import { newsItems } from "./schema/news-items";
+import { translations } from "./schema/translations";
+import type { Database } from "./client";
+import type { NewsItem, ListItem } from "./schema/news-items";
 import { isDueForCheck, getNextCheckTime, type Category } from "@hiroba/shared";
 
 /**
@@ -19,7 +20,6 @@ export async function upsertListItems(
 	const newlyInserted: ListItem[] = [];
 
 	for (const item of items) {
-		// Check if item exists before upserting
 		const existing = await db
 			.select({ id: newsItems.id })
 			.from(newsItems)
@@ -36,7 +36,6 @@ export async function upsertListItems(
 			})
 			.onConflictDoNothing();
 
-		// Track if this was a new insert
 		if (!existing) {
 			newlyInserted.push(item);
 		}
@@ -58,7 +57,6 @@ export async function getNewsItems(
 ): Promise<{ items: NewsItem[]; hasMore: boolean; nextCursor?: string }> {
 	const limit = Math.min(options.limit ?? 20, 100);
 
-	// Build base query with dynamic conditions
 	const conditions = [];
 
 	if (options.category) {
@@ -118,15 +116,12 @@ export async function getStats(db: Database): Promise<{
 }> {
 	const [totalResult, withBodyResult, translatedResult, categoryResults] =
 		await Promise.all([
-			// Total count
 			db.select({ count: sql<number>`count(*)` }).from(newsItems).get(),
-			// Items with body content
 			db
 				.select({ count: sql<number>`count(*)` })
 				.from(newsItems)
 				.where(isNotNull(newsItems.contentJa))
 				.get(),
-			// Translated items (distinct news items with English translation)
 			db
 				.select({ count: sql<number>`count(DISTINCT item_id)` })
 				.from(translations)
@@ -134,7 +129,6 @@ export async function getStats(db: Database): Promise<{
 					and(eq(translations.itemType, "news"), eq(translations.language, "en")),
 				)
 				.get(),
-			// Count by category
 			db
 				.select({
 					category: newsItems.category,
@@ -145,7 +139,6 @@ export async function getStats(db: Database): Promise<{
 				.all(),
 		]);
 
-	// Count items pending recheck (in-memory calculation)
 	const itemsWithFetchedBody = await db
 		.select({
 			publishedAt: newsItems.publishedAt,

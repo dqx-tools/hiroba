@@ -13,7 +13,6 @@
 	},
 	"dependencies": {
 		"@hiroba/db": "workspace:*",
-		"@hiroba/news-service": "workspace:*",
 		"@hiroba/scraper": "workspace:*",
 		"@hiroba/shared": "workspace:*",
 		"drizzle-orm": "1.0.0-beta.6-cd45bda"

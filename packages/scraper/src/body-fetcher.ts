@@ -8,7 +8,7 @@
 import { eq, and, or, lt, isNull } from "drizzle-orm";
 import { newsItems, type Database } from "@hiroba/db";
 import { LOCK_CONFIG } from "@hiroba/shared";
-import { fetchNewsBody, type BodyContent } from "@hiroba/scraper";
+import { fetchNewsBody, type BodyContent } from "./body-scraper";
 
 export type { BodyContent };
 

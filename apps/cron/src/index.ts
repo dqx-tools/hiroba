@@ -5,10 +5,9 @@
  */
 
 import { sql } from "drizzle-orm";
-import { createDb, glossary, type Database } from "@hiroba/db";
+import { createDb, glossary, upsertListItems, type Database } from "@hiroba/db";
 import { CATEGORIES } from "@hiroba/shared";
 import { fetchGlossary, scrapeNewsList } from "@hiroba/scraper";
-import { upsertListItems } from "@hiroba/news-service";
 
 type Bindings = {
 	DB: D1Database;

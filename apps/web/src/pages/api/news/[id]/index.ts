@@ -3,8 +3,8 @@
  */
 
 import type { APIRoute } from "astro";
-import { createDb } from "@hiroba/db";
-import { getNewsItem, getNewsBodyWithFetch } from "@hiroba/news-service";
+import { createDb, getNewsItem } from "@hiroba/db";
+import { getNewsBodyWithFetch } from "@hiroba/scraper";
 
 export const GET: APIRoute = async ({ locals, params }) => {
 	const runtime = locals.runtime;

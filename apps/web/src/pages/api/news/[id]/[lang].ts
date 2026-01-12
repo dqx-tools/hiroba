@@ -5,8 +5,8 @@
  */
 
 import type { APIRoute } from "astro";
-import { createDb } from "@hiroba/db";
-import { getNewsItemWithTranslation } from "@hiroba/news-service";
+import { createDb, getNewsItem, getOrCreateTranslation } from "@hiroba/db";
+import { getNewsBodyWithFetch } from "@hiroba/scraper";
 
 export const GET: APIRoute = async ({ locals, params }) => {
 	const runtime = locals.runtime;
@@ -29,39 +29,57 @@ export const GET: APIRoute = async ({ locals, params }) => {
 		);
 	}
 
-	const result = await getNewsItemWithTranslation(db, id, lang, runtime.env.OPENAI_API_KEY);
-
-	if (!result.success) {
-		const err = result.error;
-		let status: number;
-		let message: string;
-
-		switch (err.type) {
-			case "not_found":
-				status = 404;
-				message = "Not found";
-				break;
-			case "body_fetch_failed":
-				status = 500;
-				message = `Failed to fetch content: ${err.error}`;
-				break;
-			case "content_unavailable":
-				status = 500;
-				message = "Content not available";
-				break;
-			case "translation_failed":
-				status = 500;
-				message = `Translation failed: ${err.error}`;
-				break;
-		}
-
-		return new Response(JSON.stringify({ error: message }), {
-			status,
+	// Get the news item
+	const item = await getNewsItem(db, id);
+	if (!item) {
+		return new Response(JSON.stringify({ error: "Not found" }), {
+			status: 404,
 			headers: { "Content-Type": "application/json" },
 		});
 	}
 
-	return new Response(JSON.stringify(result.data), {
-		headers: { "Content-Type": "application/json" },
-	});
+	// Fetch body if needed
+	if (item.contentJa === null) {
+		try {
+			const body = await getNewsBodyWithFetch(db, id);
+			if (body) {
+				item.contentJa = body.contentJa;
+			}
+		} catch (error) {
+			return new Response(
+				JSON.stringify({ error: `Failed to fetch content: ${error}` }),
+				{ status: 500, headers: { "Content-Type": "application/json" } },
+			);
+		}
+	}
+
+	if (!item.contentJa) {
+		return new Response(
+			JSON.stringify({ error: "Content not available" }),
+			{ status: 500, headers: { "Content-Type": "application/json" } },
+		);
+	}
+
+	// Get or create translation
+	try {
+		const translation = await getOrCreateTranslation(
+			db,
+			id,
+			"news",
+			lang,
+			item.titleJa,
+			item.contentJa,
+			item.publishedAt,
+			runtime.env.OPENAI_API_KEY,
+		);
+
+		return new Response(JSON.stringify({ item, translation }), {
+			headers: { "Content-Type": "application/json" },
+		});
+	} catch (error) {
+		return new Response(
+			JSON.stringify({ error: `Translation failed: ${error}` }),
+			{ status: 500, headers: { "Content-Type": "application/json" } },
+		);
+	}
 };
