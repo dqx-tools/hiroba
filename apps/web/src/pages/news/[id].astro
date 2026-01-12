@@ -72,7 +72,7 @@ const categoryLabel = CATEGORY_LABELS[item.category as Category] || item.categor
 			<h1>{title}</h1>
 		</header>
 
-		<div class="content" set:html={content.replace(/\n/g, "<br>")} />
+		<div class="content" set:html={content} />
 
 		{translation && (
 			<footer class="translation-info">
@@ -88,7 +88,7 @@ const categoryLabel = CATEGORY_LABELS[item.category as Category] || item.categor
 					<div class="original">
 						<h2>{item.titleJa}</h2>
 						{item.contentJa && (
-							<div set:html={item.contentJa.replace(/\n/g, "<br>")} />
+							<div class="content" set:html={item.contentJa} />
 						)}
 					</div>
 				</details>
@@ -141,6 +141,7 @@ const categoryLabel = CATEGORY_LABELS[item.category as Category] || item.categor
 	.content {
 		line-height: 1.8;
 		margin-bottom: 2rem;
+		white-space: pre-wrap;
 	}
 
 	.translation-info {

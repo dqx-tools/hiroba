@@ -23,12 +23,12 @@ body {
 	flex-direction: column;
 }
 
-header {
+body > header {
 	border-bottom: 1px solid #eee;
 	background: white;
 }
 
-header nav {
+body > header nav {
 	display: flex;
 	align-items: center;
 	gap: 1rem;
@@ -37,26 +37,26 @@ header nav {
 	margin: 0 auto;
 }
 
-header .logo {
+body > header .logo {
 	font-weight: bold;
 	font-size: 1.1rem;
 	text-decoration: none;
 	color: var(--color-text);
 }
 
-header .nav-links {
+body > header .nav-links {
 	display: flex;
 	gap: 1rem;
 	margin-left: auto;
 }
 
-header .nav-links a {
+body > header .nav-links a {
 	text-decoration: none;
 	color: var(--color-muted);
 	font-size: 0.9rem;
 }
 
-header .nav-links a:hover {
+body > header .nav-links a:hover {
 	color: var(--color-link);
 }
 
@@ -129,11 +129,11 @@ h2 {
 
 /* Responsive */
 @media (max-width: 600px) {
-	header nav {
+	body > header nav {
 		flex-wrap: wrap;
 	}
 
-	header .nav-links {
+	body > header .nav-links {
 		width: 100%;
 		margin-left: 0;
 		justify-content: flex-start;
