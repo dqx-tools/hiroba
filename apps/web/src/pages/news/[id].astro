@@ -1,7 +1,7 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { createDb } from "@hiroba/db";
-import { getNewsItemWithTranslation } from "@hiroba/news-service";
+import { createDb, getNewsItem, getOrCreateTranslation } from "@hiroba/db";
+import { getNewsBodyWithFetch } from "@hiroba/scraper";
 import { CATEGORY_LABELS, type Category } from "@hiroba/shared";
 
 const { id } = Astro.params;
@@ -13,23 +13,44 @@ if (!id) {
 const runtime = Astro.locals.runtime;
 const db = createDb(runtime.env.DB);
 
-const result = await getNewsItemWithTranslation(db, id, "en", runtime.env.OPENAI_API_KEY);
-
-if (!result.success) {
-	const err = result.error;
-	if (err.type === "not_found") {
-		return new Response("Not found", { status: 404 });
-	}
-	// For other errors, show error page with details
-	const messages = {
-		body_fetch_failed: `Failed to fetch content: ${err.type === "body_fetch_failed" ? err.error : ""}`,
-		content_unavailable: "Content not available yet",
-		translation_failed: `Translation failed: ${err.type === "translation_failed" ? err.error : ""}`,
-	};
-	return new Response(messages[err.type], { status: 500 });
+// Get the news item
+const item = await getNewsItem(db, id);
+if (!item) {
+	return new Response("Not found", { status: 404 });
 }
 
-const { item, translation } = result.data;
+// Fetch body if needed
+if (item.contentJa === null) {
+	try {
+		const body = await getNewsBodyWithFetch(db, id);
+		if (body) {
+			item.contentJa = body.contentJa;
+		}
+	} catch (error) {
+		return new Response(`Failed to fetch content: ${error}`, { status: 500 });
+	}
+}
+
+if (!item.contentJa) {
+	return new Response("Content not available yet", { status: 500 });
+}
+
+// Get or create translation
+let translation;
+try {
+	translation = await getOrCreateTranslation(
+		db,
+		id,
+		"news",
+		"en",
+		item.titleJa,
+		item.contentJa,
+		item.publishedAt,
+		runtime.env.OPENAI_API_KEY,
+	);
+} catch (error) {
+	return new Response(`Translation failed: ${error}`, { status: 500 });
+}
 const title = translation?.title || item.titleJa;
 const content = translation?.content || item.contentJa || "Content not available";
 const categoryLabel = CATEGORY_LABELS[item.category as Category] || item.category;

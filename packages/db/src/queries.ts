@@ -223,24 +223,3 @@ export async function invalidateBody(
 	return result.length > 0;
 }
 
-/**
- * Delete a translation for a news item.
- */
-export async function deleteTranslation(
-	db: Database,
-	itemId: string,
-	language: string,
-): Promise<boolean> {
-	const result = await db
-		.delete(translations)
-		.where(
-			and(
-				eq(translations.itemType, "news"),
-				eq(translations.itemId, itemId),
-				eq(translations.language, language),
-			),
-		)
-		.returning({ itemId: translations.itemId });
-
-	return result.length > 0;
-}

@@ -1,7 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { createDb } from "@hiroba/db";
-import { getNewsItems } from "@hiroba/news-service";
+import { createDb, getNewsItems } from "@hiroba/db";
 import { CATEGORIES, CATEGORY_LABELS, type Category } from "@hiroba/shared";
 
 const runtime = Astro.locals.runtime;

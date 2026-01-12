@@ -1,8 +1,7 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { createDb } from "@hiroba/db";
-import { getNewsItems } from "@hiroba/news-service";
-import { CATEGORIES, CATEGORY_LABELS, type Category, type NewsItem } from "@hiroba/shared";
+import { createDb, getNewsItems, type NewsItem } from "@hiroba/db";
+import { CATEGORIES, CATEGORY_LABELS, type Category } from "@hiroba/shared";
 
 const { slug } = Astro.params;
 

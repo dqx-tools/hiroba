@@ -12,6 +12,8 @@ import {
 	integer,
 	primaryKey,
 } from "drizzle-orm/sqlite-core";
+import { eq, and, sql } from "drizzle-orm";
+import type { Database } from "../client";
 
 export const glossary = sqliteTable(
 	"glossary",
@@ -36,3 +38,26 @@ export const glossary = sqliteTable(
 // Type exports
 export type GlossaryEntry = typeof glossary.$inferSelect;
 export type NewGlossaryEntry = typeof glossary.$inferInsert;
+
+/**
+ * Find glossary entries that appear in the given text.
+ */
+export async function findMatchingGlossaryEntries(
+	db: Database,
+	text: string,
+	targetLanguage: string,
+): Promise<Array<{ sourceText: string; translatedText: string }>> {
+	return db
+		.select({
+			sourceText: glossary.sourceText,
+			translatedText: glossary.translatedText,
+		})
+		.from(glossary)
+		.where(
+			and(
+				eq(glossary.targetLanguage, targetLanguage),
+				sql`instr(${text}, ${glossary.sourceText}) > 0`,
+			),
+		)
+		.all();
+}
