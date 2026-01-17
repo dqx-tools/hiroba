@@ -1,0 +1,38 @@
+# Workflow worker for news processing pipeline
+name = "hiroba-workflow"
+main = "src/index.ts"
+compatibility_date = "2025-11-21"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dqx-tools--news-db"
+database_id = "local"
+migrations_dir = "migrations"
+
+# Durable Object for coordinating workflow operations and WebSocket connections
+[durable_objects]
+bindings = [
+  { name = "WORKFLOW_MANAGER", class_name = "WorkflowManager" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["WorkflowManager"]
+
+# Cloudflare Workflow for news processing
+[[workflows]]
+name = "news-workflow"
+binding = "NEWS_WORKFLOW"
+class_name = "NewsWorkflow"
+
+# Scheduled triggers:
+# - Hourly news refresh (first page of each category)
+# - Daily glossary refresh (midnight JST = 15:00 UTC)
+[triggers]
+crons = ["0 * * * *", "0 15 * * *"]
+
+# Local D1 persistence is handled via --persist-to CLI flag in package.json
