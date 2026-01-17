@@ -9,6 +9,8 @@ import * as cheerio from 'cheerio';
 import type { AnyNode } from 'domhandler';
 
 import type { ListItem } from '@hiroba/db';
+
+export type { ListItem };
 import {
   CATEGORIES,
   parseJstDateToUnix,

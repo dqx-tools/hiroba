@@ -7,6 +7,7 @@ import {
   parseListPage,
   scrapeCategory,
   scrapeNewsList,
+  type ListItem,
 } from './list-scraper';
 
 describe('list-scraper', () => {
@@ -192,8 +193,10 @@ describe('list-scraper', () => {
       const generator = scrapeNewsList('news');
       const result = await generator.next();
 
-      expect(result.value).toHaveLength(1);
-      expect(result.value[0].id).toBe('123');
+      expect(result.done).toBe(false);
+      const items = result.value as ListItem[];
+      expect(items).toHaveLength(1);
+      expect(items[0].id).toBe('123');
     });
 
     it('fetches multiple pages when pagination exists', async () => {
@@ -216,10 +219,12 @@ describe('list-scraper', () => {
       const page1 = await generator.next();
       const page2 = await generator.next();
 
-      expect(page1.value).toHaveLength(1);
-      expect(page1.value[0].id).toBe('111');
-      expect(page2.value).toHaveLength(1);
-      expect(page2.value[0].id).toBe('222');
+      const items1 = page1.value as ListItem[];
+      const items2 = page2.value as ListItem[];
+      expect(items1).toHaveLength(1);
+      expect(items1[0].id).toBe('111');
+      expect(items2).toHaveLength(1);
+      expect(items2[0].id).toBe('222');
     });
 
     it('stops when page returns no items', async () => {

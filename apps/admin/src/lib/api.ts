@@ -3,14 +3,14 @@
  * No authentication needed - protected by Cloudflare Access at edge.
  */
 
-async function adminFetch(path: string, options: RequestInit = {}) {
+async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, options);
 
   if (!res.ok) {
     throw new Error(`API error: ${res.status}`);
   }
 
-  return res.json();
+  return res.json() as Promise<T>;
 }
 
 export type Stats = {
