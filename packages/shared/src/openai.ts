@@ -11,9 +11,8 @@ export interface GlossaryTerm {
 	translatedText: string;
 }
 
-export interface TranslatedContent {
-	title: string;
-	content: string;
+export interface TranslatedFields {
+	fields: Record<string, string>;
 	model: string;
 }
 
@@ -28,21 +27,25 @@ Guidelines:
 - Maintain the original tone (official announcements should sound official)
 - If there are instructions or steps, ensure they remain clear and actionable
 
-Return your translation in the following JSON format:
-{"title": "translated title", "content": "translated content"}`;
+Return your translation as a JSON object with the same field names as the input.`;
 
 /**
  * Translate content using OpenAI.
  *
  * Pure function with no database dependencies.
+ *
+ * @param fields - Map of field names to source text (e.g., { title: "...", content: "..." })
+ * @param targetLanguage - Target language code (e.g., "en")
+ * @param glossaryTerms - List of terms with required translations
+ * @param apiKey - OpenAI API key
+ * @returns Translated fields and model used
  */
 export async function translateWithAI(
-	title: string,
-	content: string,
+	fields: Record<string, string>,
 	targetLanguage: string,
 	glossaryTerms: GlossaryTerm[],
 	apiKey: string,
-): Promise<TranslatedContent> {
+): Promise<TranslatedFields> {
 	const client = new OpenAI({ apiKey });
 	const model = "gpt-4o";
 
@@ -51,13 +54,15 @@ export async function translateWithAI(
 			? `\n\nGlossary (use these exact translations):\n${glossaryTerms.map((e) => `- ${e.sourceText} → ${e.translatedText}`).join("\n")}`
 			: "";
 
+	// Build input as labeled fields
+	const fieldEntries = Object.entries(fields)
+		.map(([name, value]) => `${name}: ${value}`)
+		.join("\n\n");
+
 	const userMessage = `Translate to ${targetLanguage}:
 ${glossaryContext}
 
-Title: ${title}
-
-Content:
-${content}`;
+${fieldEntries}`;
 
 	const response = await client.chat.completions.create({
 		model,
@@ -72,17 +77,15 @@ ${content}`;
 	const responseText = response.choices[0]?.message?.content ?? "{}";
 
 	try {
-		const parsed = JSON.parse(responseText) as { title?: string; content?: string };
-		return {
-			title: parsed.title ?? title,
-			content: parsed.content ?? content,
-			model,
-		};
+		const parsed = JSON.parse(responseText) as Record<string, string>;
+		// Ensure all requested fields are in the result
+		const result: Record<string, string> = {};
+		for (const key of Object.keys(fields)) {
+			result[key] = parsed[key] ?? fields[key];
+		}
+		return { fields: result, model };
 	} catch {
-		return {
-			title: title,
-			content: responseText,
-			model,
-		};
+		// If parsing fails, return original fields
+		return { fields: { ...fields }, model };
 	}
 }

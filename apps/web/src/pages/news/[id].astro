@@ -36,23 +36,23 @@ if (!item.contentJa) {
 }
 
 // Get or create translation
-let translation;
+let translations;
 try {
-	translation = await getOrCreateTranslation(
+	translations = await getOrCreateTranslation(
 		db,
 		id,
 		"news",
 		"en",
-		item.titleJa,
-		item.contentJa,
+		{ title: item.titleJa, content: item.contentJa },
 		item.publishedAt,
 		runtime.env.OPENAI_API_KEY,
 	);
 } catch (error) {
 	return new Response(`Translation failed: ${error}`, { status: 500 });
 }
-const title = translation?.title || item.titleJa;
-const content = translation?.content || item.contentJa || "Content not available";
+const title = translations.title?.value || item.titleJa;
+const content = translations.content?.value || item.contentJa || "Content not available";
+const translatedAt = translations.title?.translatedAt ?? 0;
 const categoryLabel = CATEGORY_LABELS[item.category as Category] || item.category;
 ---
 
@@ -74,10 +74,10 @@ const categoryLabel = CATEGORY_LABELS[item.category as Category] || item.categor
 
 		<div class="content" set:html={content} />
 
-		{translation && (
+		{translatedAt > 0 && (
 			<footer class="translation-info">
 				<p>
-					Translated on {new Date(translation.translatedAt * 1000).toLocaleDateString("en-US", {
+					Translated on {new Date(translatedAt * 1000).toLocaleDateString("en-US", {
 						year: "numeric",
 						month: "long",
 						day: "numeric",

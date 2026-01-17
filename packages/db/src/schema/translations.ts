@@ -1,9 +1,10 @@
 /**
  * Translations table and AI translation service.
  *
- * Uses a composite primary key (itemType, itemId, language) to support:
- * - Multiple content types (news, topics in future)
+ * Uses a composite primary key (itemType, itemId, language, field) to support:
+ * - Multiple content types (news, topics, events)
  * - Multiple languages per item
+ * - Different translatable fields per item type
  *
  * Includes single-flight concurrency control to prevent duplicate
  * translation API calls when multiple workers request the same translation.
@@ -15,7 +16,7 @@ import {
 	integer,
 	primaryKey,
 } from "drizzle-orm/sqlite-core";
-import { eq, and, or, lt, isNull } from "drizzle-orm";
+import { eq, and, or, lt, isNull, inArray } from "drizzle-orm";
 import type { Database } from "../client";
 import { findMatchingGlossaryEntries } from "./glossary";
 import { LOCK_CONFIG, isTranslationStale, translateWithAI } from "@hiroba/shared";
@@ -24,13 +25,13 @@ export const translations = sqliteTable(
 	"translations",
 	{
 		// Composite key components
-		itemType: text("item_type").notNull(), // "news" or "topic"
-		itemId: text("item_id").notNull(), // FK to news_items.id or topics.id
+		itemType: text("item_type").notNull(), // "news", "topic", or "event"
+		itemId: text("item_id").notNull(), // FK to news_items.id, topics.id, or events.id
 		language: text("language").notNull(), // e.g., "en"
+		field: text("field").notNull(), // e.g., "title", "content"
 
-		// Translated content
-		title: text("title").notNull(),
-		content: text("content").notNull(),
+		// Translated value
+		value: text("value").notNull(),
 
 		// Tracking
 		translatedAt: integer("translated_at").notNull(), // Unix timestamp
@@ -41,7 +42,7 @@ export const translations = sqliteTable(
 	},
 	(table) => ({
 		pk: primaryKey({
-			columns: [table.itemType, table.itemId, table.language],
+			columns: [table.itemType, table.itemId, table.language, table.field],
 		}),
 	}),
 );
@@ -49,24 +50,41 @@ export const translations = sqliteTable(
 // Type exports
 export type Translation = typeof translations.$inferSelect;
 export type NewTranslation = typeof translations.$inferInsert;
+export type ItemType = "news" | "topic" | "event";
+export type TranslationField = "title" | "content";
 
-export type TranslationResult = Pick<Translation, "title" | "content" | "translatedAt" | "model">;
+/** Result for a single translated field */
+export interface FieldTranslation {
+	value: string;
+	translatedAt: number;
+	model: string | null;
+}
+
+/** Map of field name to translation result */
+export type FieldTranslations = Partial<Record<string, FieldTranslation>>;
 
 /**
- * Get or create translation for a news item.
+ * Get or create translations for an item's fields.
  * Uses single-flight pattern to prevent concurrent translations.
+ *
+ * @param sourceFields - Map of field names to source text (e.g., { title: "...", content: "..." })
+ * @returns Map of field names to translated values
  */
 export async function getOrCreateTranslation(
 	db: Database,
 	itemId: string,
-	itemType: "news" | "topic",
+	itemType: ItemType,
 	language: string,
-	sourceTitle: string,
-	sourceContent: string,
+	sourceFields: Record<string, string>,
 	publishedAt: number,
 	aiApiKey: string,
-): Promise<TranslationResult> {
-	// Check for existing translation
+): Promise<FieldTranslations> {
+	const fieldNames = Object.keys(sourceFields);
+	if (fieldNames.length === 0) {
+		return {};
+	}
+
+	// Check for existing translations
 	const existing = await db
 		.select()
 		.from(translations)
@@ -75,21 +93,39 @@ export async function getOrCreateTranslation(
 				eq(translations.itemType, itemType),
 				eq(translations.itemId, itemId),
 				eq(translations.language, language),
+				inArray(translations.field, fieldNames),
 			),
 		)
-		.get();
+		.all();
 
-	// If exists and not stale, return it
-	if (existing && !isTranslationStale(publishedAt, existing.translatedAt)) {
-		return {
-			title: existing.title,
-			content: existing.content,
-			translatedAt: existing.translatedAt,
-			model: existing.model,
-		};
+	// Build map of existing translations
+	const existingByField = new Map(existing.map((t) => [t.field, t]));
+
+	// Find fields that need translation (missing or stale)
+	const fieldsToTranslate: string[] = [];
+	const result: FieldTranslations = {};
+
+	for (const field of fieldNames) {
+		const ex = existingByField.get(field);
+		if (ex && !isTranslationStale(publishedAt, ex.translatedAt)) {
+			// Use existing translation
+			result[field] = {
+				value: ex.value,
+				translatedAt: ex.translatedAt,
+				model: ex.model,
+			};
+		} else {
+			fieldsToTranslate.push(field);
+		}
 	}
 
-	// Try to claim the translation lock
+	// If all fields are cached and fresh, return early
+	if (fieldsToTranslate.length === 0) {
+		return result;
+	}
+
+	// Try to claim the translation lock (on title field as the "lock holder")
+	const lockField = fieldsToTranslate[0];
 	const now = Math.floor(Date.now() / 1000);
 	const staleThreshold = now - Math.floor(LOCK_CONFIG.translationStaleThreshold / 1000);
 
@@ -98,70 +134,85 @@ export async function getOrCreateTranslation(
 		itemId,
 		itemType,
 		language,
+		lockField,
 		now,
 		staleThreshold,
-		existing !== undefined,
+		existingByField.has(lockField),
 	);
 
 	if (claimed) {
 		try {
-			// Find glossary entries that appear in the source text
-			const combinedSource = `${sourceTitle} ${sourceContent}`;
+			// Build source text for glossary matching
+			const combinedSource = Object.values(sourceFields).join(" ");
 			const glossaryTerms = await findMatchingGlossaryEntries(db, combinedSource, language);
+
+			// Build map of fields to translate
+			const fieldsForAI: Record<string, string> = {};
+			for (const field of fieldsToTranslate) {
+				fieldsForAI[field] = sourceFields[field];
+			}
 
 			// Do AI translation
 			const translated = await translateWithAI(
-				sourceTitle,
-				sourceContent,
+				fieldsForAI,
 				language,
 				glossaryTerms,
 				aiApiKey,
 			);
 
-			// Save translation
-			await db
-				.insert(translations)
-				.values({
-					itemType,
-					itemId,
-					language,
-					title: translated.title,
-					content: translated.content,
-					translatedAt: now,
-					model: translated.model,
-					translatingSince: null,
-				})
-				.onConflictDoUpdate({
-					target: [translations.itemType, translations.itemId, translations.language],
-					set: {
-						title: translated.title,
-						content: translated.content,
+			// Save all translated fields
+			for (const field of fieldsToTranslate) {
+				const value = translated.fields[field] ?? sourceFields[field];
+				await db
+					.insert(translations)
+					.values({
+						itemType,
+						itemId,
+						language,
+						field,
+						value,
 						translatedAt: now,
 						model: translated.model,
 						translatingSince: null,
-					},
-				});
+					})
+					.onConflictDoUpdate({
+						target: [translations.itemType, translations.itemId, translations.language, translations.field],
+						set: {
+							value,
+							translatedAt: now,
+							model: translated.model,
+							translatingSince: null,
+						},
+					});
 
-			return { ...translated, translatedAt: now };
+				result[field] = {
+					value,
+					translatedAt: now,
+					model: translated.model,
+				};
+			}
+
+			return result;
 		} catch (error) {
 			// Release lock on error
-			await releaseTranslationLock(db, itemId, itemType, language);
+			await releaseTranslationLock(db, itemId, itemType, language, lockField);
 			throw error;
 		}
 	}
 
 	// Someone else is translating, poll until done
-	return pollForTranslation(db, itemId, itemType, language);
+	const polled = await pollForTranslation(db, itemId, itemType, language, fieldsToTranslate);
+	return { ...result, ...polled };
 }
 
 /**
- * Delete a translation for an item.
+ * Delete all translations for an item.
  */
 export async function deleteTranslation(
 	db: Database,
 	itemId: string,
 	language: string,
-	itemType: "news" | "topic" = "news",
+	itemType: ItemType = "news",
 ): Promise<boolean> {
 	const result = await db
 		.delete(translations)
@@ -185,6 +236,7 @@ async function tryClaimTranslationLock(
 	itemId: string,
 	itemType: string,
 	language: string,
+	field: string,
 	now: number,
 	staleThreshold: number,
 	exists: boolean,
@@ -199,6 +251,7 @@ async function tryClaimTranslationLock(
 					eq(translations.itemType, itemType),
 					eq(translations.itemId, itemId),
 					eq(translations.language, language),
+					eq(translations.field, field),
 					or(
 						isNull(translations.translatingSince),
 						lt(translations.translatingSince, staleThreshold),
@@ -215,8 +268,8 @@ async function tryClaimTranslationLock(
 				itemType,
 				itemId,
 				language,
-				title: "",
-				content: "",
+				field,
+				value: "",
 				translatedAt: 0,
 				translatingSince: now,
 			});
@@ -236,6 +289,7 @@ async function releaseTranslationLock(
 	itemId: string,
 	itemType: string,
 	language: string,
+	field: string,
 ): Promise<void> {
 	await db
 		.update(translations)
@@ -245,6 +299,7 @@ async function releaseTranslationLock(
 				eq(translations.itemType, itemType),
 				eq(translations.itemId, itemId),
 				eq(translations.language, language),
+				eq(translations.field, field),
 			),
 		);
 }
@@ -257,7 +312,8 @@ async function pollForTranslation(
 	itemId: string,
 	itemType: string,
 	language: string,
-): Promise<TranslationResult> {
+	fields: string[],
+): Promise<FieldTranslations> {
 	const maxWait = LOCK_CONFIG.translationMaxWait;
 	const pollInterval = LOCK_CONFIG.translationPollInterval;
 	const startTime = Date.now();
@@ -265,7 +321,7 @@ async function pollForTranslation(
 	while (Date.now() - startTime < maxWait) {
 		await sleep(pollInterval);
 
-		const result = await db
+		const results = await db
 			.select()
 			.from(translations)
 			.where(
@@ -273,18 +329,26 @@ async function pollForTranslation(
 					eq(translations.itemType, itemType),
 					eq(translations.itemId, itemId),
 					eq(translations.language, language),
+					inArray(translations.field, fields),
 				),
 			)
-			.get();
+			.all();
 
-		// Translation is complete (has content and lock released)
-		if (result && result.content && result.translatingSince === null) {
-			return {
-				title: result.title,
-				content: result.content,
-				translatedAt: result.translatedAt,
-				model: result.model,
-			};
+		// Check if all fields are complete (have value and lock released)
+		const complete = results.filter(
+			(r) => r.value && r.translatingSince === null
+		);
+
+		if (complete.length === fields.length) {
+			const result: FieldTranslations = {};
+			for (const row of complete) {
+				result[row.field] = {
+					value: row.value,
+					translatedAt: row.translatedAt,
+					model: row.model,
+				};
+			}
+			return result;
 		}
 	}
 

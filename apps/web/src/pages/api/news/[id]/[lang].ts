@@ -62,16 +62,23 @@ export const GET: APIRoute = async ({ locals, params }) => {
 
 	// Get or create translation
 	try {
-		const translation = await getOrCreateTranslation(
+		const translations = await getOrCreateTranslation(
 			db,
 			id,
 			"news",
 			lang,
-			item.titleJa,
-			item.contentJa,
+			{ title: item.titleJa, content: item.contentJa },
 			item.publishedAt,
 			runtime.env.OPENAI_API_KEY,
 		);
+
+		// Extract values for response (backward compatible format)
+		const translation = {
+			title: translations.title?.value ?? item.titleJa,
+			content: translations.content?.value ?? item.contentJa,
+			translatedAt: translations.title?.translatedAt ?? 0,
+			model: translations.title?.model ?? null,
+		};
 
 		return new Response(JSON.stringify({ item, translation }), {
 			headers: { "Content-Type": "application/json" },
