@@ -7,6 +7,7 @@
  * - Cron handlers: Hourly news refresh, daily glossary refresh
  */
 
+import * as Sentry from '@sentry/cloudflare';
 import { sql } from 'drizzle-orm';
 
 import { createDb, glossary, upsertListItems, type Database } from '@hiroba/db';
@@ -19,7 +20,13 @@ import type { Env } from './types';
 export { WorkflowManager } from './workflow-manager';
 export { NewsWorkflow } from './news-workflow';
 
-export default {
+export default Sentry.withSentry(
+  (env: Env) => ({
+    dsn: env.SENTRY_DSN,
+    release: env.CF_VERSION_METADATA.id,
+    tracesSampleRate: 1.0,
+  }),
+  {
   /**
    * Handle HTTP requests.
    * Routes requests to the appropriate WorkflowManager DO.
@@ -99,7 +106,7 @@ export default {
       await refreshNews(db, env);
     }
   },
-};
+});
 
 /**
  * Refresh glossary from GitHub CSV.
