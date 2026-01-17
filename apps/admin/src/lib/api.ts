@@ -132,3 +132,19 @@ export async function deleteGlossaryEntry(
 		{ method: "DELETE" },
 	);
 }
+
+export interface GlossaryMatch {
+	sourceText: string;
+	translatedText: string;
+}
+
+export async function lookupGlossary(
+	text: string,
+	lang = "en",
+): Promise<{ matches: GlossaryMatch[] }> {
+	return adminFetch("/api/glossary/lookup", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ text, lang }),
+	});
+}
