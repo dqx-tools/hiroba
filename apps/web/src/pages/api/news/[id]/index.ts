@@ -1,12 +1,12 @@
 /**
  * GET /api/news/:id - Get single news item with lazy body fetch
+ *
+ * If body is not fetched, triggers the workflow to fetch it.
  */
 
 import type { APIRoute } from 'astro';
 
 import { createDb, getNewsItem } from '@hiroba/db';
-
-import type { NewsItemDO } from '../../../../types/do';
 
 export const GET: APIRoute = async ({ locals, params }) => {
   const runtime = locals.runtime;
@@ -22,18 +22,23 @@ export const GET: APIRoute = async ({ locals, params }) => {
     });
   }
 
-  // Lazy body fetch via DO if not yet fetched
+  // If body not yet fetched, trigger workflow (but don't wait for it)
   if (item.contentJa === null) {
     try {
-      const doId = runtime.env.NEWS_ITEM_DO.idFromName(id);
-      const stub = runtime.env.NEWS_ITEM_DO.get(doId) as unknown as NewsItemDO;
-      const body = await stub.fetchBodyIfNeeded(id);
-      if (body) {
-        item.contentJa = body.contentJa;
-      }
+      const doId = runtime.env.WORKFLOW_MANAGER.idFromName(id);
+      const stub = runtime.env.WORKFLOW_MANAGER.get(doId);
+
+      // Fire and forget - trigger the workflow
+      stub.fetch(
+        new Request('http://internal/trigger', {
+          method: 'POST',
+          body: JSON.stringify({ itemId: id }),
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
     } catch (error) {
-      // Body fetch failed but we can still return metadata
-      console.error(`Body fetch failed for ${id}:`, error);
+      // Workflow trigger failed but we can still return metadata
+      console.error(`Workflow trigger failed for ${id}:`, error);
     }
   }
 

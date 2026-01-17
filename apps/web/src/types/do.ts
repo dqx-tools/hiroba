@@ -1,22 +1,25 @@
 /**
  * Type definitions for Durable Object RPC interfaces.
  *
- * These match the methods exposed by NewsItemDO in apps/cron.
+ * These match the methods exposed by WorkflowManager in apps/workflow.
  */
 
-import type { FieldTranslations, ItemType } from '@hiroba/db';
-
-export type BodyContent = {
-  contentJa: string;
+export type WorkflowTriggerResponse = {
+  status: 'started' | 'already_processing';
+  instanceId: string;
 };
 
-export type NewsItemDO = {
-  fetchBodyIfNeeded(itemId: string): Promise<BodyContent | null>;
-  translateFields(
-    itemId: string,
-    itemType: ItemType,
-    language: string,
-    sourceFields: Record<string, string>,
-    publishedAt: number,
-  ): Promise<FieldTranslations>;
-};
+export type WorkflowStatusResponse =
+  | { status: 'idle' }
+  | {
+      status: 'running' | 'queued' | 'complete' | 'errored';
+      instanceId: string;
+      output?: unknown;
+      error?: string;
+    };
+
+/**
+ * WorkflowManager DO interface.
+ * Used via stub.fetch() with appropriate URL paths.
+ * The stub is obtained from DurableObjectNamespace.get() in the runtime env.
+ */

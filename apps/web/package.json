@@ -14,7 +14,8 @@
     "@hiroba/db": "workspace:*",
     "@hiroba/scraper": "workspace:*",
     "@hiroba/shared": "workspace:*",
-    "astro": "^5.1.0"
+    "astro": "^5.1.0",
+    "drizzle-orm": "1.0.0-beta.6-cd45bda"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.6",

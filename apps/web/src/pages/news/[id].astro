@@ -1,8 +1,8 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { createDb, getNewsItem } from "@hiroba/db";
+import { createDb, getNewsItem, translations as translationsTable } from "@hiroba/db";
 import { CATEGORY_LABELS, type Category } from "@hiroba/shared";
-import type { NewsItemDO } from "../../types/do";
+import { and, eq } from "drizzle-orm";
 
 const { id } = Astro.params;
 
@@ -19,42 +19,49 @@ if (!item) {
 	return new Response("Not found", { status: 404 });
 }
 
-// Get DO stub for this news item
-const doId = runtime.env.NEWS_ITEM_DO.idFromName(id);
-const stub = runtime.env.NEWS_ITEM_DO.get(doId) as unknown as NewsItemDO;
+// Check for existing translations
+const existingTranslations = await db
+	.select()
+	.from(translationsTable)
+	.where(
+		and(
+			eq(translationsTable.itemType, "news"),
+			eq(translationsTable.itemId, id),
+			eq(translationsTable.language, "en"),
+		),
+	)
+	.all();
 
-// Fetch body via DO if needed
-if (item.contentJa === null) {
+const titleTranslation = existingTranslations.find((t) => t.field === "title");
+const contentTranslation = existingTranslations.find((t) => t.field === "content");
+
+// Determine content state
+const hasTranslations = !!titleTranslation;
+const hasContent = !!item.contentJa;
+
+// If no content or no translations, trigger workflow (fire and forget)
+if (!hasContent || !hasTranslations) {
 	try {
-		const body = await stub.fetchBodyIfNeeded(id);
-		if (body) {
-			item.contentJa = body.contentJa;
-		}
+		const doId = runtime.env.WORKFLOW_MANAGER.idFromName(id);
+		const stub = runtime.env.WORKFLOW_MANAGER.get(doId);
+
+		stub.fetch(
+			new Request("http://internal/trigger", {
+				method: "POST",
+				body: JSON.stringify({ itemId: id }),
+				headers: { "Content-Type": "application/json" },
+			}),
+		);
 	} catch (error) {
-		return new Response(`Failed to fetch content: ${error}`, { status: 500 });
+		console.error(`Workflow trigger failed for ${id}:`, error);
 	}
 }
 
-if (!item.contentJa) {
-	return new Response("Content not available yet", { status: 500 });
-}
-
-// Translate via DO
-let translations;
-try {
-	translations = await stub.translateFields(
-		id,
-		"news",
-		"en",
-		{ title: item.titleJa, content: item.contentJa },
-		item.publishedAt,
-	);
-} catch (error) {
-	return new Response(`Translation failed: ${error}`, { status: 500 });
-}
-const title = translations.title?.value || item.titleJa;
-const content = translations.content?.value || item.contentJa || "Content not available";
-const translatedAt = translations.title?.translatedAt ?? 0;
+// Use translations if available, otherwise fall back to Japanese
+const title = titleTranslation?.value ?? item.titleJa;
+const content = contentTranslation?.value ?? item.contentJa ?? "";
+const translatedAt = titleTranslation?.translatedAt ?? 0;
+const isTranslated = !!titleTranslation;
 const categoryLabel = CATEGORY_LABELS[item.category as Category] || item.category;
 ---
 
@@ -74,7 +81,21 @@ const categoryLabel = CATEGORY_LABELS[item.category as Category] || item.categor
 			<h1>{title}</h1>
 		</header>
 
-		<div class="content" set:html={content} />
+		{!hasContent && (
+			<div class="loading-notice">
+				<p>Content is being fetched. Please refresh in a moment.</p>
+			</div>
+		)}
+
+		{hasContent && !isTranslated && (
+			<div class="translation-notice">
+				<p>Translation in progress. Showing original Japanese content.</p>
+			</div>
+		)}
+
+		{content && (
+			<div class="content" set:html={content} />
+		)}
 
 		{translatedAt > 0 && (
 			<footer class="translation-info">
@@ -138,6 +159,21 @@ const categoryLabel = CATEGORY_LABELS[item.category as Category] || item.categor
 	h1 {
 		font-size: 1.75rem;
 		line-height: 1.3;
+	}
+
+	.loading-notice,
+	.translation-notice {
+		background: #fff3cd;
+		border: 1px solid #ffc107;
+		padding: 1rem;
+		border-radius: 4px;
+		margin-bottom: 1.5rem;
+	}
+
+	.loading-notice p,
+	.translation-notice p {
+		margin: 0;
+		color: #856404;
 	}
 
 	.content {

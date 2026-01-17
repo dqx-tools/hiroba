@@ -2,8 +2,7 @@
 
 type RuntimeEnv = {
   DB: D1Database;
-  OPENAI_API_KEY: string;
-  NEWS_ITEM_DO: DurableObjectNamespace;
+  WORKFLOW_MANAGER: DurableObjectNamespace;
 };
 
 declare namespace App {
