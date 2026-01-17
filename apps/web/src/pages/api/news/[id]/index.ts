@@ -29,13 +29,11 @@ export const GET: APIRoute = async ({ locals, params }) => {
       const stub = runtime.env.WORKFLOW_MANAGER.get(doId);
 
       // Fire and forget - trigger the workflow
-      stub.fetch(
-        new Request('http://internal/trigger', {
-          method: 'POST',
-          body: JSON.stringify({ itemId: id }),
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      );
+      stub.fetch('http://internal/trigger', {
+        method: 'POST',
+        body: JSON.stringify({ itemId: id }),
+        headers: { 'Content-Type': 'application/json' },
+      });
     } catch (error) {
       // Workflow trigger failed but we can still return metadata
       console.error(`Workflow trigger failed for ${id}:`, error);

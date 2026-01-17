@@ -20,9 +20,7 @@ export const GET: APIRoute = async ({ locals, params, request }) => {
   const stub = runtime.env.WORKFLOW_MANAGER.get(doId);
 
   // Forward the WebSocket upgrade request to the DO
-  return stub.fetch(
-    new Request(`http://internal/ws?itemId=${id}`, {
-      headers: request.headers,
-    }),
-  );
+  return stub.fetch(`http://internal/ws?itemId=${id}`, {
+    headers: request.headers,
+  });
 };

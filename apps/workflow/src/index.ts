@@ -48,7 +48,7 @@ export default {
       doUrl.pathname = url.pathname.replace(`/workflow/${itemId}`, '');
       if (!doUrl.pathname) doUrl.pathname = '/';
 
-      return stub.fetch(new Request(doUrl.toString(), request));
+      return stub.fetch(doUrl.toString(), request);
     }
 
     // Trigger workflow for a specific item
@@ -64,13 +64,11 @@ export default {
       const doId = env.WORKFLOW_MANAGER.idFromName(itemId);
       const stub = env.WORKFLOW_MANAGER.get(doId);
 
-      return stub.fetch(
-        new Request('http://internal/trigger', {
-          method: 'POST',
-          body: JSON.stringify({ itemId }),
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      );
+      return stub.fetch('http://internal/trigger', {
+        method: 'POST',
+        body: JSON.stringify({ itemId }),
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     return Response.json(
@@ -170,13 +168,11 @@ async function refreshNews(db: Database, env: Env): Promise<void> {
             const doId = env.WORKFLOW_MANAGER.idFromName(item.id);
             const stub = env.WORKFLOW_MANAGER.get(doId);
 
-            await stub.fetch(
-              new Request('http://internal/trigger', {
-                method: 'POST',
-                body: JSON.stringify({ itemId: item.id }),
-                headers: { 'Content-Type': 'application/json' },
-              }),
-            );
+            await stub.fetch('http://internal/trigger', {
+              method: 'POST',
+              body: JSON.stringify({ itemId: item.id }),
+              headers: { 'Content-Type': 'application/json' },
+            });
 
             workflowsTriggered++;
           } catch (error) {

@@ -81,9 +81,7 @@ export const GET: APIRoute = async ({ locals, params, url }) => {
   const stub = runtime.env.WORKFLOW_MANAGER.get(doId);
 
   // Check current workflow status
-  const statusResponse = await stub.fetch(
-    new Request(`http://internal/status?itemId=${id}`),
-  );
+  const statusResponse = await stub.fetch(`http://internal/status?itemId=${id}`);
   const status = (await statusResponse.json()) as WorkflowStatusResponse;
 
   // If already processing, return status
@@ -105,13 +103,11 @@ export const GET: APIRoute = async ({ locals, params, url }) => {
 
   // Trigger new workflow
   try {
-    const triggerResponse = await stub.fetch(
-      new Request('http://internal/trigger', {
-        method: 'POST',
-        body: JSON.stringify({ itemId: id }),
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
+    const triggerResponse = await stub.fetch('http://internal/trigger', {
+      method: 'POST',
+      body: JSON.stringify({ itemId: id }),
+      headers: { 'Content-Type': 'application/json' },
+    });
 
     const triggerResult = (await triggerResponse.json()) as WorkflowTriggerResponse;
     const wsUrl = buildWsUrl(url, id);
