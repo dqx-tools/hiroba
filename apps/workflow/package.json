@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",
-    "dev": "dotenv -e ../../.env -- wrangler dev --test-scheduled --persist-to ../../.wrangler-shared",
+    "dev": "CLOUDFLARE_INCLUDE_PROCESS_ENV=true dotenv -e ../../.env -- wrangler dev --test-scheduled --persist-to ../../.wrangler-shared",
     "start": "wrangler dev --persist-to ../../.wrangler-shared",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
