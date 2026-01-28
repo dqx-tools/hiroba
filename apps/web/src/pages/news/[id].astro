@@ -105,15 +105,7 @@ const categoryLabel = CATEGORY_LABELS[item.category as Category] || item.categor
 						day: "numeric",
 					})}
 				</p>
-				<details>
-					<summary>View original Japanese</summary>
-					<div class="original">
-						<h2>{item.titleJa}</h2>
-						{item.contentJa && (
-							<div class="content" set:html={item.contentJa} />
-						)}
-					</div>
-				</details>
+				<a href={`https://hiroba.dqx.jp/sc/news/detail/${id}/`} target="_blank" rel="noopener noreferrer">View original article</a>
 			</footer>
 		)}
 
@@ -203,27 +195,6 @@ const categoryLabel = CATEGORY_LABELS[item.category as Category] || item.categor
 		border-top: 1px solid #eee;
 		color: var(--color-muted);
 		font-size: 0.9rem;
-	}
-
-	details {
-		margin-top: 1rem;
-	}
-
-	summary {
-		cursor: pointer;
-		color: var(--color-link);
-	}
-
-	.original {
-		margin-top: 1rem;
-		padding: 1rem;
-		background: #f5f5f5;
-		border-radius: 4px;
-	}
-
-	.original h2 {
-		font-size: 1.25rem;
-		margin-bottom: 1rem;
 	}
 
 	.back-link {
