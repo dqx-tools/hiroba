@@ -12,6 +12,8 @@
 
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
+import { instant } from '../types/instant';
+
 export const events = sqliteTable('events', {
   // Primary identifier
   id: text('id').primaryKey(),
@@ -23,15 +25,15 @@ export const events = sqliteTable('events', {
   titleJa: text('title_ja').notNull(),
 
   // ISO8601 strings - date only ("2024-01-15") or with time ("2024-01-15T14:00:00+09:00")
-  startTime: text('start_time').notNull(),
-  endTime: text('end_time'), // null for allDay and mark
+  startTime: instant('start_time').notNull(),
+  endTime: instant('end_time'), // null for allDay and mark
 
   // Link to source content (optional)
   sourceType: text('source_type'), // "news" | "topic"
   sourceId: text('source_id'), // FK to news_items.id or topics.id
 
   // Metadata
-  createdAt: integer('created_at').notNull(), // Unix timestamp
+  createdAt: instant('created_at').notNull(), // Unix timestamp
 });
 
 // Type exports

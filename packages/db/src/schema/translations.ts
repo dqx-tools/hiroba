@@ -5,8 +5,6 @@
  * - Multiple content types (news, topics, events)
  * - Multiple languages per item
  * - Different translatable fields per item type
- *
- * Note: Concurrency is now handled by Durable Objects, not database locks.
  */
 
 import { and, eq } from 'drizzle-orm';
@@ -17,6 +15,7 @@ import {
   text,
 } from 'drizzle-orm/sqlite-core';
 
+import { instant } from '../types/instant';
 import type { Database } from '../client';
 
 export const translations = sqliteTable(
@@ -32,7 +31,7 @@ export const translations = sqliteTable(
     value: text('value').notNull(),
 
     // Tracking
-    translatedAt: integer('translated_at').notNull(), // Unix timestamp
+    translatedAt: instant('translated_at').notNull(), // Unix timestamp
     model: text('model'), // AI model used for translation (e.g., "gpt-4o")
   },
   (table) => ({
