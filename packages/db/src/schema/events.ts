@@ -10,32 +10,52 @@
  * Translations are stored in the translations table with itemType="event".
  */
 
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
+import { check, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 import { instant } from '../types/instant';
 import { zonedDateTime } from '../types/zoned-date-time';
 
-export const events = sqliteTable('events', {
-  // Primary identifier
-  id: text('id').primaryKey(),
+export const events = sqliteTable(
+  'events',
+  {
+    // Primary identifier
+    id: text('id').primaryKey(),
 
-  // Event type determines interpretation of time fields
-  type: text('type').notNull(), // "multiDay" | "allDay" | "span" | "mark"
+    // Event type determines interpretation of time fields
+    type: text('type').notNull(), // "multiDay" | "allDay" | "span" | "mark"
 
-  // Japanese title (source for translation)
-  titleJa: text('title_ja').notNull(),
+    // Japanese title (source for translation)
+    titleJa: text('title_ja').notNull(),
 
-  // ZonedDateTime strings stored as RFC9557 timestamps
-  startTime: zonedDateTime('start_time').notNull(),
-  endTime: zonedDateTime('end_time'), // null for allDay and mark
+    // ZonedDateTime strings stored as RFC9557 timestamps
+    startTime: zonedDateTime('start_time').notNull(),
+    endTime: zonedDateTime('end_time'), // null for allDay and mark
 
-  // Link to source content (optional)
-  sourceType: text('source_type'), // "news" | "topic"
-  sourceId: text('source_id'), // FK to news_items.id or topics.id
+    // Link to source content (optional)
+    sourceType: text('source_type'), // "news" | "topic"
+    sourceId: text('source_id'), // FK to news_items.id or topics.id
 
-  // Metadata
-  createdAt: instant('created_at').notNull(), // epoch ms (Temporal.Instant)
-});
+    // Metadata
+    createdAt: instant('created_at').notNull(), // epoch ms (Temporal.Instant)
+  },
+  // Mirrors the CHECK constraints in migration 0008. Drizzle has no STRICT
+  // table option, so strict typing lives only in the raw migration.
+  (table) => [
+    check(
+      'events_type_valid',
+      sql`${table.type} IN ('multiDay', 'allDay', 'span', 'mark')`,
+    ),
+    // multiDay/span require an end_time; allDay/mark must not have one.
+    check(
+      'events_end_time_by_type',
+      sql`CASE
+        WHEN ${table.type} IN ('multiDay', 'span') THEN ${table.endTime} IS NOT NULL
+        WHEN ${table.type} IN ('allDay', 'mark') THEN ${table.endTime} IS NULL
+      END`,
+    ),
+  ],
+);
 
 // Type exports
 export type Event = typeof events.$inferSelect;

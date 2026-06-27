@@ -29,7 +29,7 @@ export const translations = sqliteTable(
 
     // Tracking
     translatedAt: instant('translated_at').notNull(), // epoch ms (Temporal.Instant)
-    model: text('model'), // AI model used for translation (e.g., "gpt-4o")
+    model: text('model').notNull(), // AI model used for translation (e.g., "gpt-4o")
   },
   (table) => ({
     pk: primaryKey({
@@ -48,7 +48,7 @@ export type TranslationField = 'title' | 'content';
 export type FieldTranslation = {
   value: string;
   translatedAt: Temporal.Instant;
-  model: string | null;
+  model: string;
 };
 
 /** Map of field name to translation result */
